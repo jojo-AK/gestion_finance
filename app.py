@@ -488,9 +488,23 @@ def budget():
 # ── MODIFIER BUDGET JOURNALIER ────────────────────────────────────────────────
 @app.route("/budget/modifier_jour", methods=["POST"])
 def modifier_jour():
-    date_str   = request.form['date']
-    nouveau    = float(request.form['planned'])
-    week_start = request.form['week_start']
+    date_str   = request.form.get('date', '')
+    planned_raw = request.form.get('planned', '').strip()
+    week_start = request.form.get('week_start', '')
+
+    if not planned_raw:
+        flash("⚠️ Saisis un montant avant de modifier.", "error")
+        return redirect(url_for('budget'))
+
+    try:
+        nouveau = float(planned_raw)
+    except ValueError:
+        flash("⚠️ Montant invalide.", "error")
+        return redirect(url_for('budget'))
+
+    if nouveau < 0:
+        flash("⚠️ Le budget ne peut pas être négatif.", "error")
+        return redirect(url_for('budget'))
 
     conn = get_db()
     wb = conn.execute("SELECT * FROM weekly_budgets WHERE week_start=? AND closed=0", (week_start,)).fetchone()
@@ -796,6 +810,78 @@ def api_alertes():
 @app.context_processor
 def inject_now():
     return {"now": datetime.now()}
+
+# ── RÉSERVE ───────────────────────────────────────────────────────────────────
+@app.route("/reserve", methods=["GET","POST"])
+def reserve():
+    if request.method == "POST":
+        action      = request.form.get('action')
+        montant     = float(request.form.get('montant', 0))
+        description = request.form.get('description', '')
+        date        = request.form.get('date', datetime.now().strftime('%Y-%m-%d'))
+
+        if montant <= 0:
+            flash("⚠️ Le montant doit être supérieur à 0.", "error")
+            return redirect(url_for('reserve'))
+
+        conn = get_db()
+
+        if action == 'credit':
+            # Alimenter la réserve directement (sans passer par revenu)
+            create_ledger_entry(conn, 'external', 'reserve', montant, 'reserve_credit',
+                description or 'Alimentation réserve', date=date)
+            conn.commit()
+            conn.close()
+            flash(f"✅ Réserve créditée de {cfa(montant)}.", "success")
+
+        elif action == 'debit':
+            # Retrait direct depuis la réserve (dépense imprévue hors budget)
+            reserve_bal = get_balance('reserve')
+            if montant > reserve_bal:
+                conn.close()
+                flash(f"⚠️ Réserve insuffisante. Disponible : {cfa(reserve_bal)}.", "error")
+                return redirect(url_for('reserve'))
+            create_ledger_entry(conn, 'reserve', 'external', montant, 'reserve_debit',
+                description or 'Retrait réserve', date=date)
+            conn.commit()
+            conn.close()
+            flash(f"✅ {cfa(montant)} retiré de la réserve.", "success")
+
+        elif action == 'ajustement':
+            # Forcer la réserve à un montant précis
+            reserve_bal = get_balance('reserve')
+            nouveau     = montant
+            diff        = round(nouveau - reserve_bal, 2)
+            if diff == 0:
+                conn.close()
+                flash("ℹ️ Le solde est déjà à ce montant.", "error")
+                return redirect(url_for('reserve'))
+            if diff > 0:
+                create_ledger_entry(conn, 'external', 'reserve', diff, 'adjustment',
+                    description or f'Ajustement réserve (+{cfa(diff)})', date=date)
+            else:
+                create_ledger_entry(conn, 'reserve', 'external', abs(diff), 'adjustment',
+                    description or f'Ajustement réserve ({cfa(diff)})', date=date)
+            conn.commit()
+            conn.close()
+            flash(f"✅ Réserve ajustée à {cfa(nouveau)} (différence : {cfa(diff)}).", "success")
+
+        return redirect(url_for('reserve'))
+
+    # GET
+    reserve_bal = get_balance('reserve')
+    budget_bal  = get_balance('budget')
+    conn = get_db()
+    # Historique des opérations sur la réserve (20 dernières)
+    historique = conn.execute("""
+        SELECT * FROM ledger
+        WHERE source='reserve' OR destination='reserve'
+        ORDER BY date DESC, id DESC LIMIT 20
+    """).fetchall()
+    conn.close()
+    return render_template("reserve.html",
+        reserve_bal=reserve_bal, budget_bal=budget_bal,
+        historique=historique, today=datetime.now().strftime('%Y-%m-%d'))
 
 if __name__ == "__main__":
     init_db()
