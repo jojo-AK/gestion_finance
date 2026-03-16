@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-3">
+  <h1 style="font-size:1.5rem; font-weight:700;">📥 Ajouter un revenu</h1>
+  <p class="text-muted">Le revenu sera automatiquement réparti entre réserve et budget.</p>
+</div>
+<div style="max-width:500px;">
+  <div class="card">
+    <form method="POST">
+      <div class="form-group">
+        <label>Montant (€)</label>
+        <input type="number" name="montant" step="0.01" min="0.01" placeholder="Ex: 150000" required autofocus>
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <input type="text" name="description" placeholder="Ex: Salaire janvier, Freelance, Prime...">
+      </div>
+      <div class="form-group">
+        <label>Part à mettre en réserve (épargne)</label>
+        <div class="range-row">
+          <input type="range" name="reserve_pct" id="reserve_range" min="0" max="100" value="30" step="5"
+            oninput="updateRange(this.value)">
+          <span class="range-label" id="range-display">30%</span>
+        </div>
+        <div class="mt-1" style="display:flex; justify-content:space-between; font-size:0.8rem; color:var(--muted);">
+          <span>Réserve : <span id="reserve-pct" class="green font-bold">30%</span></span>
+          <span>Budget semaine : <span id="budget-pct" class="blue font-bold">70%</span></span>
+        </div>
+      </div>
+      <div id="preview" class="card-sm mb-2" style="display:none; background:var(--surface2); border-color:var(--border);">
+        <div class="flex justify-between mb-1">
+          <span class="text-muted">→ Réserve</span>
+          <span class="green font-bold" id="preview-reserve">—</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-muted">→ Budget semaine</span>
+          <span class="blue font-bold" id="preview-budget">—</span>
+        </div>
+      </div>
+      <button class="btn btn-success w-full">✅ Enregistrer le revenu</button>
+    </form>
+  </div>
+</div>
+<script>
+function updateRange(v){
+  document.getElementById('range-display').textContent = v+'%';
+  document.getElementById('reserve-pct').textContent = v+'%';
+  document.getElementById('budget-pct').textContent = (100-v)+'%';
+  updatePreview();
+}
+function updatePreview(){
+  const m = parseFloat(document.querySelector('[name=montant]').value);
+  const r = parseInt(document.getElementById('reserve_range').value)/100;
+  if(m && m > 0){
+    document.getElementById('preview').style.display = 'block';
+    document.getElementById('preview-reserve').textContent = (m*r).toFixed(2)+' €';
+    document.getElementById('preview-budget').textContent = (m*(1-r)).toFixed(2)+' €';
+  } else {
+    document.getElementById('preview').style.display = 'none';
+  }
+}
+document.querySelector('[name=montant]').addEventListener('input', updatePreview);
+</script>
+{% endblock %}

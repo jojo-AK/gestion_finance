@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-3">
+  <h1 style="font-size:1.5rem; font-weight:700;">📤 Saisir une dépense</h1>
+</div>
+
+<div style="max-width:520px;">
+  <!-- Info logique de dépense -->
+  <div class="card-sm mb-2" style="border-left:3px solid #3b82f6; font-size:0.85rem; color:var(--muted);">
+    💡 Les dépenses utilisent d'abord le <strong style="color:var(--text);">budget semaine</strong> ({{ "%.2f"|format(budget_bal) }} €), puis la <strong style="color:var(--text);">réserve</strong> ({{ "%.2f"|format(reserve_bal) }} €) si nécessaire.<br>
+    Maximum disponible : <strong style="color:var(--text);">{{ "%.2f"|format(budget_bal + reserve_bal) }} €</strong>
+  </div>
+
+  <div class="card">
+    <form method="POST">
+      <div class="form-group">
+        <label>Montant (€)</label>
+        <input type="number" name="montant" id="montant" step="0.01" min="0.01"
+          max="{{ budget_bal + reserve_bal }}" placeholder="0.00" required autofocus
+          oninput="updatePreview(this.value)">
+      </div>
+
+      <!-- Prévisualisation de la source -->
+      <div id="source-preview" style="display:none; margin-bottom:1rem; padding:0.75rem; background:var(--surface2); border-radius:var(--border-radius-sm); font-size:0.85rem;">
+        <div id="preview-budget"></div>
+        <div id="preview-reserve"></div>
+      </div>
+
+      <div class="form-group">
+        <label>Description</label>
+        <input type="text" name="description" placeholder="Ex: Taxi, Courses, Médicaments...">
+      </div>
+      <div class="form-group">
+        <label>Catégorie</label>
+        <select name="category_id">
+          {% for c in categories %}
+          <option value="{{ c.id }}">{{ c.icon }} {{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" name="date" value="{{ today }}">
+      </div>
+      <button class="btn btn-danger w-full">💸 Enregistrer la dépense</button>
+    </form>
+  </div>
+</div>
+
+<script>
+const budgetBal  = {{ budget_bal }};
+const reserveBal = {{ reserve_bal }};
+
+function updatePreview(val) {
+  const m = parseFloat(val);
+  if (!m || m <= 0) { document.getElementById('source-preview').style.display='none'; return; }
+
+  document.getElementById('source-preview').style.display = 'block';
+  let html = '';
+
+  if (m <= budgetBal) {
+    html = `<span style="color:#3b82f6;">✓ Pris sur budget semaine : ${m.toFixed(2)} €</span>`;
+  } else if (m <= budgetBal + reserveBal) {
+    const fromBudget  = budgetBal;
+    const fromReserve = (m - budgetBal).toFixed(2);
+    html  = `<div style="color:#3b82f6;">↳ Budget semaine : ${fromBudget.toFixed(2)} €</div>`;
+    html += `<div style="color:#ef4444;">↳ Réserve (complément) : ${fromReserve} €</div>`;
+  } else {
+    html = `<span style="color:#ef4444;">⚠️ Montant trop élevé (max ${(budgetBal+reserveBal).toFixed(2)} €)</span>`;
+  }
+
+  document.getElementById('source-preview').innerHTML = html;
+}
+</script>
+{% endblock %}

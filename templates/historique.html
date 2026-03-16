@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-3">
+  <h1 style="font-size:1.5rem; font-weight:700;">📋 Historique des opérations</h1>
+</div>
+
+<div class="card mb-2" style="padding:1rem;">
+  <form method="GET" class="flex gap-2" style="flex-wrap:wrap; align-items:flex-end;">
+    <div>
+      <label style="font-size:0.8rem;">Mois</label>
+      <input type="month" name="month" value="{{ filter_month }}" style="width:auto;">
+    </div>
+    <div>
+      <label style="font-size:0.8rem;">Type</label>
+      <select name="type" style="width:auto;">
+        <option value="">Tous</option>
+        <option value="income" {% if filter_type=='income' %}selected{% endif %}>📥 Revenus</option>
+        <option value="expense" {% if filter_type=='expense' %}selected{% endif %}>📤 Dépenses</option>
+        <option value="allocation" {% if filter_type=='allocation' %}selected{% endif %}>↗️ Allocations</option>
+        <option value="transfer" {% if filter_type=='transfer' %}selected{% endif %}>↔️ Transferts</option>
+        <option value="loan" {% if filter_type=='loan' %}selected{% endif %}>🤝 Prêts</option>
+        <option value="repayment" {% if filter_type=='repayment' %}selected{% endif %}>💵 Remboursements</option>
+        <option value="week_close" {% if filter_type=='week_close' %}selected{% endif %}>🔒 Clôtures semaine</option>
+      </select>
+    </div>
+    <div>
+      <label style="font-size:0.8rem;">Catégorie</label>
+      <select name="cat" style="width:auto;">
+        <option value="">Toutes</option>
+        {% for c in categories %}
+        <option value="{{ c.id }}" {% if filter_cat == c.id|string %}selected{% endif %}>{{ c.icon }} {{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary btn-sm">Filtrer</button>
+    <a href="/historique" class="btn btn-outline btn-sm">Réinitialiser</a>
+  </form>
+</div>
+
+<div class="grid-3 mb-2">
+  <div class="stat-card">
+    <div class="stat-label">Entrées</div>
+    <div class="stat-value green" style="font-size:1.2rem;">+{{ "%.2f"|format(total_in) }} €</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Dépenses</div>
+    <div class="stat-value red" style="font-size:1.2rem;">-{{ "%.2f"|format(total_out) }} €</div>
+  </div>
+  <div class="stat-card">
+    {% set bal = total_in - total_out %}
+    <div class="stat-label">Balance</div>
+    <div class="stat-value {{ 'green' if bal >= 0 else 'red' }}" style="font-size:1.2rem;">{{ "%.2f"|format(bal) }} €</div>
+  </div>
+</div>
+
+<div class="card" style="padding:0; overflow:hidden;">
+  {% if transactions %}
+  <table>
+    <thead><tr>
+      <th>Type</th><th>Description</th><th>Source → Dest.</th><th>Date</th><th class="text-right">Montant</th>
+    </tr></thead>
+    <tbody>
+    {% for t in transactions %}
+    <tr>
+      <td style="width:36px; text-align:center; font-size:1rem;">
+        {% if t.type in ('expense','expense_reserve') %}💸
+        {% elif t.type == 'income' %}📥
+        {% elif t.type == 'allocation' %}↗️
+        {% elif t.type in ('transfer','week_close') %}↔️
+        {% elif t.type in ('loan','loan_received') %}🤝
+        {% elif t.type == 'repayment' %}💵
+        {% else %}📋{% endif %}
+      </td>
+      <td>
+        <div style="font-size:0.875rem;">{{ t.description or '—' }}</div>
+        {% if t.cat_name %}<div class="text-muted" style="font-size:0.75rem;">{{ t.cat_icon }} {{ t.cat_name }}</div>{% endif %}
+      </td>
+      <td class="text-muted" style="font-size:0.78rem;">{{ t.source }} → {{ t.destination }}</td>
+      <td class="text-muted" style="font-size:0.8rem; white-space:nowrap;">{{ t.date }}</td>
+      <td class="text-right font-bold" style="white-space:nowrap;">
+        {% if t.type in ('expense','expense_reserve') %}<span class="red">-{{ "%.2f"|format(t.amount) }} €</span>
+        {% elif t.destination in ('reserve','budget','income') and t.type not in ('expense','expense_reserve') %}<span class="green">+{{ "%.2f"|format(t.amount) }} €</span>
+        {% else %}<span class="blue">{{ "%.2f"|format(t.amount) }} €</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:3rem; text-align:center; color:var(--muted);">Aucune opération pour cette période.</div>
+  {% endif %}
+</div>
+{% endblock %}

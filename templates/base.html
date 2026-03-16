@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>💰 Finance Perso</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --surface2: #334155;
+    --border: #475569; --text: #f1f5f9; --muted: #94a3b8;
+    --green: #10b981; --red: #ef4444; --blue: #3b82f6;
+    --purple: #8b5cf6; --amber: #f59e0b;
+    --radius: 12px; --radius-sm: 8px;
+  }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; min-height: 100vh; }
+  a { color: var(--blue); text-decoration: none; }
+
+  /* NAV */
+  nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 1.5rem; position: sticky; top: 0; z-index: 100; }
+  .nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; gap: 0.25rem; height: 60px; }
+  .nav-brand { font-size: 1.1rem; font-weight: 700; color: var(--text); margin-right: auto; }
+  .nav-link { color: var(--muted); padding: 0.5rem 0.875rem; border-radius: var(--radius-sm); font-size: 0.875rem; transition: all 0.15s; white-space: nowrap; }
+  .nav-link:hover, .nav-link.active { background: var(--surface2); color: var(--text); }
+
+  /* LAYOUT */
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+  /* CARDS */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; }
+  .card-sm { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
+
+  /* GRID */
+  .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem; }
+  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+
+  /* STAT CARD */
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+  .stat-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+  .stat-value { font-size: 1.75rem; font-weight: 700; }
+  .stat-sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.375rem; }
+  .green { color: var(--green); }
+  .red { color: var(--red); }
+  .blue { color: var(--blue); }
+  .amber { color: var(--amber); }
+
+  /* FORMS */
+  .form-group { margin-bottom: 1.25rem; }
+  label { display: block; font-size: 0.875rem; color: var(--muted); margin-bottom: 0.375rem; }
+  input, select, textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-radius: var(--radius-sm); padding: 0.625rem 0.875rem;
+    font-size: 0.9rem; outline: none; transition: border-color 0.15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--blue); }
+  .range-row { display: flex; align-items: center; gap: 1rem; }
+  input[type="range"] { flex: 1; accent-color: var(--blue); height: 6px; }
+  .range-label { font-size: 0.9rem; font-weight: 600; min-width: 48px; color: var(--blue); }
+
+  /* BUTTONS */
+  .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.625rem 1.25rem;
+    border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 500; cursor: pointer;
+    border: none; transition: all 0.15s; }
+  .btn-primary { background: var(--blue); color: white; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-success { background: var(--green); color: white; }
+  .btn-success:hover { background: #059669; }
+  .btn-danger { background: var(--red); color: white; }
+  .btn-sm { padding: 0.375rem 0.75rem; font-size: 0.8rem; }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .btn-outline:hover { border-color: var(--blue); color: var(--blue); }
+
+  /* TABLE */
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
+  td { padding: 0.875rem 1rem; border-bottom: 1px solid #1e293b; font-size: 0.9rem; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  /* BADGE */
+  .badge { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 500; }
+  .badge-green { background: #065f46; color: #6ee7b7; }
+  .badge-red { background: #7f1d1d; color: #fca5a5; }
+  .badge-blue { background: #1e3a5f; color: #93c5fd; }
+  .badge-gray { background: var(--surface2); color: var(--muted); }
+
+  /* ALERTS */
+  .alert { padding: 0.875rem 1.25rem; border-radius: var(--radius-sm); margin-bottom: 1rem; font-size: 0.9rem; }
+  .alert-success { background: #064e3b; border: 1px solid #065f46; color: #6ee7b7; }
+  .alert-error { background: #7f1d1d; border: 1px solid #991b1b; color: #fca5a5; }
+
+  /* PROGRESS BAR */
+  .progress { background: var(--surface2); border-radius: 999px; height: 8px; overflow: hidden; }
+  .progress-bar { height: 100%; border-radius: 999px; transition: width 0.3s; }
+
+  /* SECTION TITLE */
+  .section-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+
+  /* MODAL STYLE FORM */
+  .form-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; max-width: 500px; }
+
+  /* MISC */
+  .flex { display: flex; align-items: center; }
+  .gap-1 { gap: 0.5rem; }
+  .gap-2 { gap: 1rem; }
+  .justify-between { justify-content: space-between; }
+  .mt-1 { margin-top: 0.5rem; }
+  .mt-2 { margin-top: 1rem; }
+  .mt-3 { margin-top: 1.5rem; }
+  .mb-1 { margin-bottom: 0.5rem; }
+  .mb-2 { margin-bottom: 1rem; }
+  .mb-3 { margin-bottom: 1.5rem; }
+  .text-muted { color: var(--muted); font-size: 0.875rem; }
+  .text-right { text-align: right; }
+  .font-bold { font-weight: 700; }
+  .w-full { width: 100%; }
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-inner">
+    <span class="nav-brand">💰 Finance Perso</span>
+    <a href="/" class="nav-link {% if request.endpoint=='index' %}active{% endif %}">🏠 Tableau de bord</a>
+    <a href="/revenu" class="nav-link {% if request.endpoint=='revenu' %}active{% endif %}">📥 Revenus</a>
+    <a href="/depense" class="nav-link {% if request.endpoint=='depense' %}active{% endif %}">📤 Dépenses</a>
+    <a href="/budget" class="nav-link {% if request.endpoint=='budget' %}active{% endif %}">📅 Budget</a>
+    <a href="/prets" class="nav-link {% if request.endpoint=='prets' %}active{% endif %}">🤝 Prêts</a>
+    <a href="/historique" class="nav-link {% if request.endpoint=='historique' %}active{% endif %}">📋 Historique</a>
+  </div>
+</nav>
+<div class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for cat, msg in messages %}
+        <div class="alert alert-{{ 'success' if cat == 'success' else 'error' }}">{{ msg }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+</body>
+</html>
