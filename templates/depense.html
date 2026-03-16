@@ -7,14 +7,14 @@
 <div style="max-width:520px;">
   <!-- Info logique de dépense -->
   <div class="card-sm mb-2" style="border-left:3px solid #3b82f6; font-size:0.85rem; color:var(--muted);">
-    💡 Les dépenses utilisent d'abord le <strong style="color:var(--text);">budget semaine</strong> ({{ "%.2f"|format(budget_bal) }} €), puis la <strong style="color:var(--text);">réserve</strong> ({{ "%.2f"|format(reserve_bal) }} €) si nécessaire.<br>
-    Maximum disponible : <strong style="color:var(--text);">{{ "%.2f"|format(budget_bal + reserve_bal) }} €</strong>
+    💡 Les dépenses utilisent d'abord le <strong style="color:var(--text);">budget semaine</strong> ({{ budget_bal|cfa }}), puis la <strong style="color:var(--text);">réserve</strong> ({{ reserve_bal|cfa }}) si nécessaire.<br>
+    Maximum disponible : <strong style="color:var(--text);">{% set max_dispo = budget_bal + reserve_bal %}{{ max_dispo|cfa }}</strong>
   </div>
 
   <div class="card">
     <form method="POST">
       <div class="form-group">
-        <label>Montant (€)</label>
+        <label>Montant (FCFA)</label>
         <input type="number" name="montant" id="montant" step="0.01" min="0.01"
           max="{{ budget_bal + reserve_bal }}" placeholder="0.00" required autofocus
           oninput="updatePreview(this.value)">
@@ -59,14 +59,14 @@ function updatePreview(val) {
   let html = '';
 
   if (m <= budgetBal) {
-    html = `<span style="color:#3b82f6;">✓ Pris sur budget semaine : ${m.toFixed(2)} €</span>`;
+    html = `<span style="color:#3b82f6;">✓ Pris sur budget semaine : ${Math.round(m).toLocaleString('fr-FR')} FCFA</span>`;
   } else if (m <= budgetBal + reserveBal) {
     const fromBudget  = budgetBal;
-    const fromReserve = (m - budgetBal).toFixed(2);
-    html  = `<div style="color:#3b82f6;">↳ Budget semaine : ${fromBudget.toFixed(2)} €</div>`;
-    html += `<div style="color:#ef4444;">↳ Réserve (complément) : ${fromReserve} €</div>`;
+    const fromReserve = (m - budgetBal).toFixed(0);
+    html  = `<div style="color:#3b82f6;">↳ Budget semaine : ${Math.round(fromBudget).toLocaleString('fr-FR')} FCFA</div>`;
+    html += `<div style="color:#ef4444;">↳ Réserve (complément) : ${Number(fromReserve).toLocaleString('fr-FR')} FCFA</div>`;
   } else {
-    html = `<span style="color:#ef4444;">⚠️ Montant trop élevé (max ${(budgetBal+reserveBal).toFixed(2)} €)</span>`;
+    html = `<span style="color:#ef4444;">⚠️ Montant trop élevé (max ${Math.round(budgetBal+reserveBal).toLocaleString('fr-FR')} FCFA)</span>`;
   }
 
   document.getElementById('source-preview').innerHTML = html;

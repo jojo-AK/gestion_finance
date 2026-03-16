@@ -6,6 +6,27 @@ app = Flask(__name__)
 app.secret_key = "finance_app_secret"
 DB_PATH = "finance.db"
 
+def fmt_cfa(amount):
+    """Formate un montant en FCFA avec espaces comme séparateurs de milliers. Ex: 1 250 000 FCFA"""
+    try:
+        n = int(round(float(amount)))
+        # Séparateur d'espaces insécables
+        formatted = f"{n:,}".replace(",", "\u202f")
+        return f"{formatted} FCFA"
+    except:
+        return "0 FCFA"
+
+app.jinja_env.filters['cfa'] = fmt_cfa
+
+def cfa(amount):
+    """Formate pour les f-strings Python (flash messages, alertes)."""
+    try:
+        n = int(round(float(amount)))
+        return f"{n:,}".replace(",", " ") + " FCFA"
+    except:
+        return "0 FCFA"
+
+
 # ─── BASE DE DONNÉES ──────────────────────────────────────────────────────────
 
 def get_db():
@@ -128,7 +149,7 @@ def add_expense_smart(conn, montant, description, category_id, date):
     reserve_bal = get_balance('reserve')
 
     if montant > budget_bal + reserve_bal:
-        return False, f"Fonds insuffisants. Disponible : {budget_bal + reserve_bal:.2f} (budget {budget_bal:.2f} + réserve {reserve_bal:.2f})"
+        return False, f"Fonds insuffisants. Disponible : {cfa(budget_bal + reserve_bal)} (budget {cfa(budget_bal)} + réserve {cfa(reserve_bal)})"
 
     if montant <= budget_bal:
         create_ledger_entry(conn, 'budget', 'depense', montant, 'expense', description, category_id, date)
@@ -321,22 +342,35 @@ def revenu():
     if request.method == "POST":
         montant     = float(request.form['montant'])
         description = request.form.get('description', 'Revenu')
-        reserve_pct = float(request.form.get('reserve_pct', 30)) / 100
-        reserve_part = round(montant * reserve_pct, 2)
-        budget_part  = round(montant - reserve_part, 2)
-        date = request.form.get('date', datetime.now().strftime('%Y-%m-%d'))
+        date        = request.form.get('date', datetime.now().strftime('%Y-%m-%d'))
+        mode        = request.form.get('mode', 'auto')
+
+        if mode == 'manuel':
+            # Montants saisis directement
+            reserve_part = float(request.form.get('reserve_montant') or 0)
+            budget_part  = float(request.form.get('budget_montant') or 0)
+            # Sécurité : on s'assure que la somme ne dépasse pas le montant
+            if reserve_part + budget_part > montant + 1:
+                flash("⚠️ La somme des montants dépasse le revenu total.", "error")
+                return redirect(url_for('revenu'))
+        else:
+            # Mode automatique : calcul par pourcentage
+            reserve_pct  = float(request.form.get('reserve_pct', 30)) / 100
+            reserve_part = round(montant * reserve_pct, 2)
+            budget_part  = round(montant - reserve_part, 2)
+
+        reserve_part = round(reserve_part, 2)
+        budget_part  = round(budget_part, 2)
 
         conn = get_db()
-        # Entrée du revenu
         create_ledger_entry(conn, 'external', 'income', montant, 'income', description, date=date)
-        # Répartition
         if reserve_part > 0:
             create_ledger_entry(conn, 'income', 'reserve', reserve_part, 'allocation', f"{description} → réserve", date=date)
         if budget_part > 0:
             create_ledger_entry(conn, 'income', 'budget', budget_part, 'allocation', f"{description} → budget", date=date)
         conn.commit()
         conn.close()
-        flash(f"✅ Revenu de {montant:.2f} enregistré — Réserve: +{reserve_part:.2f} | Budget: +{budget_part:.2f}", "success")
+        flash(f"✅ Revenu de {cfa(montant)} enregistré — Réserve : +{cfa(reserve_part)} | Budget : +{cfa(budget_part)}", "success")
         return redirect(url_for('index'))
 
     return render_template("revenu.html")
@@ -356,7 +390,7 @@ def depense():
         ok, msg = add_expense_smart(conn, montant, description, cat_id, date)
         if ok:
             conn.commit()
-            flash(f"✅ Dépense de {montant:.2f} enregistrée.", "success")
+            flash(f"✅ Dépense de {cfa(montant)} enregistrée.", "success")
             conn.close()
             return redirect(url_for('index'))
         else:
@@ -378,13 +412,13 @@ def transfert():
     montant = float(request.form['montant'])
     reserve_bal = get_balance('reserve')
     if reserve_bal < montant:
-        flash(f"⚠️ Réserve insuffisante ({reserve_bal:.2f}).", "error")
+        flash(f"⚠️ Réserve insuffisante ({cfa(reserve_bal)}).", "error")
     else:
         conn = get_db()
         create_ledger_entry(conn, 'reserve', 'budget', montant, 'transfer', 'Transfert réserve → budget')
         conn.commit()
         conn.close()
-        flash(f"✅ {montant:.2f} transféré vers le budget.", "success")
+        flash(f"✅ {cfa(montant)} transféré vers le budget.", "success")
     return redirect(url_for('index'))
 
 # ── BUDGET SEMAINE ────────────────────────────────────────────────────────────
@@ -415,7 +449,7 @@ def budget():
 
         conn.commit()
         conn.close()
-        flash(f"✅ Budget de {montant:.2f} défini — {daily:.2f}/jour pendant 7 jours.", "success")
+        flash(f"✅ Budget de {cfa(montant)} défini — {cfa(daily)}/jour pendant 7 jours.", "success")
         return redirect(url_for('budget'))
 
     conn = get_db()
@@ -467,7 +501,7 @@ def modifier_jour():
             (wb['id'], date_str)
         ).fetchone()[0]
         if autres + nouveau > wb['total_amount'] + 0.01:
-            flash(f"⚠️ La somme des budgets journaliers dépasse le budget semaine ({wb['total_amount']:.2f}).", "error")
+            flash(f"⚠️ La somme des budgets journaliers dépasse le budget semaine ({cfa(wb["total_amount"])}).", "error")
         else:
             conn.execute("UPDATE daily_budgets SET planned=? WHERE weekly_budget_id=? AND date=?",
                 (nouveau, wb['id'], date_str))
@@ -490,7 +524,7 @@ def cloturer_semaine():
         if budget_bal > 0:
             create_ledger_entry(conn, 'budget', 'reserve', budget_bal, 'week_close',
                 f"Clôture semaine {week_start_str} → réserve", date=str(week_end))
-            flash(f"✅ Semaine clôturée. {budget_bal:.2f} transféré vers la réserve.", "success")
+            flash(f"✅ Semaine clôturée. {cfa(budget_bal)} transféré vers la réserve.", "success")
         conn.execute("UPDATE weekly_budgets SET closed=1 WHERE id=?", (w['id'],))
         conn.commit()
     conn.close()
@@ -515,7 +549,7 @@ def prets():
                 # Prêt donné : argent sort de la réserve
                 reserve_bal = get_balance('reserve')
                 if reserve_bal < montant:
-                    flash(f"⚠️ Réserve insuffisante ({reserve_bal:.2f}) pour ce prêt.", "error")
+                    flash(f"⚠️ Réserve insuffisante ({cfa(reserve_bal)}) pour ce prêt.", "error")
                     conn.close()
                     loans = conn.execute("SELECT * FROM loans ORDER BY status, date DESC").fetchall() if False else []
                     return redirect(url_for('prets'))
@@ -604,6 +638,160 @@ def historique():
         filter_type=filter_type, filter_cat=filter_cat, filter_month=filter_month,
         total_in=round(total_in,2), total_out=round(total_out,2)
     )
+
+# ── STATISTIQUES ──────────────────────────────────────────────────────────────
+@app.route("/stats")
+def stats():
+    conn = get_db()
+    today      = datetime.now().date()
+    week_start = today - timedelta(days=today.weekday())
+    month      = today.strftime('%Y-%m')
+
+    # ── Dépenses par catégorie ce mois ──
+    by_cat_month = conn.execute("""
+        SELECT c.name, c.color, c.icon, COALESCE(SUM(l.amount),0) as total
+        FROM categories c
+        LEFT JOIN ledger l ON l.category_id=c.id
+            AND l.type IN ('expense','expense_reserve') AND l.date LIKE ?
+        GROUP BY c.id HAVING total > 0 ORDER BY total DESC
+    """, (f"{month}%",)).fetchall()
+
+    # ── Dépenses par catégorie cette semaine ──
+    by_cat_week = conn.execute("""
+        SELECT c.name, c.color, c.icon, COALESCE(SUM(l.amount),0) as total
+        FROM categories c
+        LEFT JOIN ledger l ON l.category_id=c.id
+            AND l.type IN ('expense','expense_reserve')
+            AND l.date BETWEEN ? AND ?
+        GROUP BY c.id HAVING total > 0 ORDER BY total DESC
+    """, (str(week_start), str(week_start + timedelta(days=6)))).fetchall()
+
+    # ── Évolution des dépenses sur les 6 derniers mois ──
+    monthly_trend = []
+    for i in range(5, -1, -1):
+        d = today.replace(day=1) - timedelta(days=1)
+        for _ in range(i):
+            d = d.replace(day=1) - timedelta(days=1)
+        m_str = (today.replace(day=1) - timedelta(days=i*30)).strftime('%Y-%m')
+        # recalcul propre
+        from datetime import date as date_
+        year  = today.year
+        month_num = today.month - i
+        while month_num <= 0:
+            month_num += 12
+            year -= 1
+        m_label = f"{year}-{month_num:02d}"
+        exp = conn.execute(
+            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type IN ('expense','expense_reserve') AND date LIKE ?",
+            (f"{m_label}%",)
+        ).fetchone()[0]
+        inc = conn.execute(
+            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type='income' AND date LIKE ?",
+            (f"{m_label}%",)
+        ).fetchone()[0]
+        monthly_trend.append({'month': m_label, 'expenses': round(exp,2), 'income': round(inc,2)})
+
+    # ── Dépenses par jour cette semaine ──
+    daily_week = []
+    jours = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']
+    weekly = conn.execute(
+        "SELECT * FROM weekly_budgets WHERE week_start=? AND closed=0", (str(week_start),)
+    ).fetchone()
+    for i in range(7):
+        day = week_start + timedelta(days=i)
+        spent = conn.execute(
+            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type IN ('expense','expense_reserve') AND date=?",
+            (str(day),)
+        ).fetchone()[0]
+        budget_day = 0
+        if weekly:
+            db = conn.execute(
+                "SELECT planned, carry FROM daily_budgets WHERE weekly_budget_id=? AND date=?",
+                (weekly['id'], str(day))
+            ).fetchone()
+            if db:
+                budget_day = round(db['planned'] + (db['carry'] or 0), 2)
+        daily_week.append({'label': jours[i], 'spent': round(spent,2), 'budget': budget_day, 'is_today': str(day)==str(today)})
+
+    # ── Totaux mois ──
+    total_month_exp = conn.execute(
+        "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type IN ('expense','expense_reserve') AND date LIKE ?", (f"{month}%",)
+    ).fetchone()[0]
+    total_month_inc = conn.execute(
+        "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type='income' AND date LIKE ?", (f"{month}%",)
+    ).fetchone()[0]
+
+    # ── Totaux semaine ──
+    total_week_exp = conn.execute(
+        "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type IN ('expense','expense_reserve') AND date BETWEEN ? AND ?",
+        (str(week_start), str(week_start + timedelta(days=6)))
+    ).fetchone()[0]
+
+    reserve_bal = get_balance('reserve')
+    budget_bal  = get_balance('budget')
+
+    conn.close()
+    return render_template("stats.html",
+        by_cat_month=by_cat_month, by_cat_week=by_cat_week,
+        monthly_trend=monthly_trend, daily_week=daily_week,
+        total_month_exp=round(total_month_exp,2), total_month_inc=round(total_month_inc,2),
+        total_week_exp=round(total_week_exp,2),
+        reserve_bal=reserve_bal, budget_bal=budget_bal,
+        weekly=weekly, week_start=str(week_start), today=str(today), month=month
+    )
+
+# ── API ALERTES (appelée en JS depuis le dashboard) ──────────────────────────
+@app.route("/api/alertes")
+def api_alertes():
+    import json
+    today      = datetime.now().date()
+    week_start = today - timedelta(days=today.weekday())
+    alertes    = []
+
+    conn = get_db()
+    weekly = conn.execute(
+        "SELECT * FROM weekly_budgets WHERE week_start=? AND closed=0", (str(week_start),)
+    ).fetchone()
+
+    if weekly:
+        today_day = conn.execute(
+            "SELECT * FROM daily_budgets WHERE weekly_budget_id=? AND date=?",
+            (weekly['id'], str(today))
+        ).fetchone()
+        if today_day:
+            real_budget = round(today_day['planned'] + (today_day['carry'] or 0), 2)
+            spent = conn.execute(
+                "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type IN ('expense','expense_reserve') AND date=?",
+                (str(today),)
+            ).fetchone()[0]
+            pct = (spent / real_budget * 100) if real_budget > 0 else 0
+            reste = real_budget - spent
+
+            if pct >= 100:
+                alertes.append({'level': 'danger', 'msg': f"⛔ Budget journalier dépassé ! Tu as dépensé {cfa(spent)} sur {cfa(real_budget)} prévu."})
+            elif pct >= 80:
+                alertes.append({'level': 'warning', 'msg': f"⚠️ Attention — il te reste seulement {cfa(reste)} pour aujourd'hui ({100-pct:.0f}%)."})
+            elif pct >= 60:
+                alertes.append({'level': 'info', 'msg': f"💡 Tu as utilisé {pct:.0f}% de ton budget journalier. Reste : {cfa(reste)}."})
+
+        # Alerte budget semaine
+        week_spent = conn.execute(
+            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type IN ('expense','expense_reserve') AND date BETWEEN ? AND ?",
+            (str(week_start), str(week_start + timedelta(days=6)))
+        ).fetchone()[0]
+        week_pct = (week_spent / weekly['total_amount'] * 100) if weekly['total_amount'] > 0 else 0
+        if week_pct >= 90:
+            alertes.append({'level': 'warning', 'msg': f"⚠️ Budget semaine presque épuisé — {100-week_pct:.0f}% restant."})
+
+    # Alerte réserve faible
+    reserve_bal = get_balance('reserve')
+    budget_bal  = get_balance('budget')
+    if reserve_bal < budget_bal * 0.5 and reserve_bal < 10000:
+        alertes.append({'level': 'info', 'msg': f"💰 Réserve faible ({cfa(reserve_bal)}). Pense à alimenter ton épargne."})
+
+    conn.close()
+    from flask import jsonify
+    return jsonify(alertes)
 
 @app.context_processor
 def inject_now():

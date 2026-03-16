@@ -6,30 +6,33 @@
   <p class="text-muted">{{ now.strftime('%A %d %B %Y') }}</p>
 </div>
 
+<!-- ALERTES DYNAMIQUES -->
+<div id="alertes-container" style="margin-bottom:1rem;"></div>
+
 <div class="grid-4 mb-3">
   <div class="stat-card" style="border-left:3px solid #10b981;">
     <div class="stat-label">🏦 Réserve (Épargne)</div>
-    <div class="stat-value {{ 'green' if reserve_bal >= 0 else 'red' }}">{{ "%.2f"|format(reserve_bal) }} €</div>
+    <div class="stat-value {{ 'green' if reserve_bal >= 0 else 'red' }}">{{ reserve_bal|cfa }}</div>
     <div class="stat-sub">Épargne disponible</div>
   </div>
   <div class="stat-card" style="border-left:3px solid #3b82f6;">
     <div class="stat-label">📅 Budget semaine</div>
-    <div class="stat-value {{ 'blue' if budget_bal >= 0 else 'red' }}">{{ "%.2f"|format(budget_bal) }} €</div>
+    <div class="stat-value {{ 'blue' if budget_bal >= 0 else 'red' }}">{{ budget_bal|cfa }}</div>
     <div class="stat-sub">Solde courant</div>
   </div>
   <div class="stat-card" style="border-left:3px solid #f59e0b;">
     <div class="stat-label">☀️ Budget aujourd'hui</div>
-    <div class="stat-value blue">{{ "%.2f"|format(today_real_budget) }} €</div>
+    <div class="stat-value blue">{{ today_real_budget|cfa }}</div>
     <div class="stat-sub">
       {% if today_day and today_day['carry'] > 0 %}
-        <span class="green">+{{ "%.2f"|format(today_day['carry']) }} report hier</span>
+        <span class="green">+{{ today_day["carry"]|cfa }} report hier</span>
       {% else %}Budget planifié{% endif %}
     </div>
   </div>
   <div class="stat-card" style="border-left:3px solid #ef4444;">
     <div class="stat-label">💸 Dépenses aujourd'hui</div>
-    <div class="stat-value red">{{ "%.2f"|format(today_spent) }} €</div>
-    <div class="stat-sub">Reste : <strong class="{{ 'green' if today_real_budget - today_spent >= 0 else 'red' }}">{{ "%.2f"|format(today_real_budget - today_spent) }} €</strong></div>
+    <div class="stat-value red">{{ today_spent|cfa }}</div>
+    <div class="stat-sub">Reste : <strong class="{{ 'green' if today_real_budget - today_spent >= 0 else 'red' }}">{% set reste_jour = today_real_budget - today_spent %}{{ reste_jour|cfa }}</strong></div>
   </div>
 </div>
 
@@ -58,7 +61,7 @@
     <div class="card mb-2">
       <div class="flex justify-between mb-1">
         <span class="text-muted" style="font-size:0.875rem;">Progression</span>
-        <span style="font-size:0.875rem; font-weight:600;">{{ "%.2f"|format(weekly_spent) }} / {{ "%.2f"|format(weekly.total_amount) }} €</span>
+        <span style="font-size:0.875rem; font-weight:600;">{{ weekly_spent|cfa }} / {{ weekly.total_amount|cfa }}</span>
       </div>
       {% set pct = (weekly_spent / weekly.total_amount * 100) if weekly.total_amount > 0 else 0 %}
       <div class="progress mb-1">
@@ -66,7 +69,7 @@
       </div>
       <div class="text-muted" style="font-size:0.8rem; display:flex; justify-content:space-between;">
         <span>{{ "%.1f"|format(pct) }}% utilisé</span>
-        <span class="{{ 'green' if weekly.total_amount - weekly_spent >= 0 else 'red' }} font-bold">Reste {{ "%.2f"|format(weekly.total_amount - weekly_spent) }} €</span>
+        <span class="{{ 'green' if weekly.total_amount - weekly_spent >= 0 else 'red' }} font-bold">{% set reste_sem = weekly.total_amount - weekly_spent %}Reste {{ reste_sem|cfa }}</span>
       </div>
       <div class="mt-1"><a href="/budget" style="font-size:0.8rem; color:var(--blue);">Voir planning journalier →</a></div>
     </div>
@@ -81,7 +84,7 @@
     <div class="card-sm flex justify-between mb-2" style="border-left:3px solid #f59e0b;">
       <div>
         <div style="font-size:0.875rem; font-weight:600;">🤝 {{ loans_count }} prêt{{ 's' if loans_count > 1 else '' }} actif{{ 's' if loans_count > 1 else '' }}</div>
-        <div class="text-muted" style="font-size:0.8rem;">{{ "%.2f"|format(loans_total) }} € à récupérer</div>
+        <div class="text-muted" style="font-size:0.8rem;">{{ loans_total|cfa }} à récupérer</div>
       </div>
       <a href="/prets" class="btn btn-outline btn-sm">Gérer</a>
     </div>
@@ -90,11 +93,11 @@
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
       <div class="stat-card">
         <div class="stat-label">Revenus ce mois</div>
-        <div class="stat-value green" style="font-size:1.2rem;">+{{ "%.2f"|format(monthly_income) }} €</div>
+        <div class="stat-value green" style="font-size:1.2rem;">+{{ monthly_income|cfa }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Dépenses ce mois</div>
-        <div class="stat-value red" style="font-size:1.2rem;">-{{ "%.2f"|format(monthly_expenses) }} €</div>
+        <div class="stat-value red" style="font-size:1.2rem;">-{{ monthly_expenses|cfa }}</div>
       </div>
     </div>
   </div>
@@ -124,9 +127,9 @@
             <div class="text-muted" style="font-size:0.75rem;">{{ t.date }}</div>
           </td>
           <td class="text-right font-bold" style="white-space:nowrap;">
-            {% if t.type in ('expense','expense_reserve') %}<span class="red">-{{ "%.2f"|format(t.amount) }} €</span>
-            {% elif t.type in ('income','week_close','repayment') and t.destination in ('reserve','budget','income') %}<span class="green">+{{ "%.2f"|format(t.amount) }} €</span>
-            {% else %}<span class="blue">{{ "%.2f"|format(t.amount) }} €</span>{% endif %}
+            {% if t.type in ('expense','expense_reserve') %}<span class="red">-{{ t.amount|cfa }}</span>
+            {% elif t.type in ('income','week_close','repayment') and t.destination in ('reserve','budget','income') %}<span class="green">+{{ t.amount|cfa }}</span>
+            {% else %}<span class="blue">{{ t.amount|cfa }}</span>{% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -144,7 +147,7 @@
       <div style="margin-bottom:0.75rem;">
         <div class="flex justify-between" style="font-size:0.85rem; margin-bottom:4px;">
           <span>{{ c.icon }} {{ c.name }}</span>
-          <span class="font-bold">{{ "%.2f"|format(c.total) }} €</span>
+          <span class="font-bold">{{ c.total|cfa }}</span>
         </div>
         <div class="progress">
           <div class="progress-bar" style="width:{{ (c.total / monthly_expenses * 100) if monthly_expenses > 0 else 0 }}%; background:{{ c.color }};"></div>
@@ -155,4 +158,22 @@
     {% endif %}
   </div>
 </div>
+
+<script>
+fetch('/api/alertes')
+  .then(r => r.json())
+  .then(alertes => {
+    if (!alertes.length) return;
+    const colors = { danger: '#7f1d1d', warning: '#78350f', info: '#1e3a5f' };
+    const textColors = { danger: '#fca5a5', warning: '#fcd34d', info: '#93c5fd' };
+    const borders = { danger: '#991b1b', warning: '#92400e', info: '#1e40af' };
+    const container = document.getElementById('alertes-container');
+    alertes.forEach(a => {
+      const div = document.createElement('div');
+      div.style.cssText = `background:${colors[a.level]||colors.info}; border:1px solid ${borders[a.level]||borders.info}; color:${textColors[a.level]||textColors.info}; padding:0.75rem 1.25rem; border-radius:8px; margin-bottom:0.5rem; font-size:0.875rem; display:flex; justify-content:space-between; align-items:center;`;
+      div.innerHTML = `<span>${a.msg}</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:inherit;cursor:pointer;font-size:1rem;opacity:0.7;padding:0 0 0 1rem;">✕</button>`;
+      container.appendChild(div);
+    });
+  });
+</script>
 {% endblock %}

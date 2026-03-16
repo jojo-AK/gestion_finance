@@ -2,63 +2,242 @@
 {% block content %}
 <div class="mb-3">
   <h1 style="font-size:1.5rem; font-weight:700;">📥 Ajouter un revenu</h1>
-  <p class="text-muted">Le revenu sera automatiquement réparti entre réserve et budget.</p>
+  <p class="text-muted">Choisis comment répartir ton revenu.</p>
 </div>
-<div style="max-width:500px;">
+<div style="max-width:520px;">
+
+  <!-- CHOIX DU MODE -->
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:1.5rem;">
+    <button type="button" id="btn-auto" onclick="setMode('auto')"
+      style="padding:0.875rem; border-radius:var(--border-radius-md); border:2px solid var(--blue); background:rgba(59,130,246,0.1); color:var(--text); cursor:pointer; font-size:0.875rem; font-weight:500; text-align:center;">
+      🎚️ Mode automatique<br>
+      <span style="font-size:0.78rem; color:var(--muted); font-weight:400;">Curseur de pourcentage</span>
+    </button>
+    <button type="button" id="btn-manuel" onclick="setMode('manuel')"
+      style="padding:0.875rem; border-radius:var(--border-radius-md); border:1px solid var(--border); background:transparent; color:var(--muted); cursor:pointer; font-size:0.875rem; font-weight:500; text-align:center;">
+      ✏️ Mode manuel<br>
+      <span style="font-size:0.78rem; font-weight:400;">Saisir les montants</span>
+    </button>
+  </div>
+
   <div class="card">
-    <form method="POST">
+    <form method="POST" id="revenu-form">
+      <input type="hidden" name="mode" id="mode-input" value="auto">
+      <input type="hidden" name="reserve_pct" id="reserve_pct_hidden" value="30">
+      <input type="hidden" name="reserve_montant" id="reserve_montant_hidden" value="">
+      <input type="hidden" name="budget_montant" id="budget_montant_hidden" value="">
+
       <div class="form-group">
-        <label>Montant (€)</label>
-        <input type="number" name="montant" step="0.01" min="0.01" placeholder="Ex: 150000" required autofocus>
+        <label>Montant total reçu (FCFA)</label>
+        <input type="number" name="montant" id="montant" min="1" step="1"
+          placeholder="Ex: 150000" required autofocus oninput="onMontantChange()">
       </div>
       <div class="form-group">
         <label>Description</label>
-        <input type="text" name="description" placeholder="Ex: Salaire janvier, Freelance, Prime...">
+        <input type="text" name="description" placeholder="Ex: Salaire, Freelance, Prime...">
       </div>
       <div class="form-group">
-        <label>Part à mettre en réserve (épargne)</label>
-        <div class="range-row">
-          <input type="range" name="reserve_pct" id="reserve_range" min="0" max="100" value="30" step="5"
-            oninput="updateRange(this.value)">
-          <span class="range-label" id="range-display">30%</span>
-        </div>
-        <div class="mt-1" style="display:flex; justify-content:space-between; font-size:0.8rem; color:var(--muted);">
-          <span>Réserve : <span id="reserve-pct" class="green font-bold">30%</span></span>
-          <span>Budget semaine : <span id="budget-pct" class="blue font-bold">70%</span></span>
+        <label>Date</label>
+        <input type="date" name="date" value="{{ now.strftime('%Y-%m-%d') }}">
+      </div>
+
+      <!-- MODE AUTO -->
+      <div id="section-auto">
+        <div class="form-group">
+          <label>Part à mettre en réserve (épargne)</label>
+          <div class="range-row">
+            <input type="range" id="reserve_range" min="0" max="100" value="30" step="5"
+              oninput="onRangeChange(this.value)">
+            <span class="range-label" id="range-display">30%</span>
+          </div>
+          <div class="mt-1" style="display:flex; justify-content:space-between; font-size:0.8rem; color:var(--muted);">
+            <span>Réserve : <span id="reserve-pct" class="green font-bold">30%</span></span>
+            <span>Budget semaine : <span id="budget-pct" class="blue font-bold">70%</span></span>
+          </div>
         </div>
       </div>
-      <div id="preview" class="card-sm mb-2" style="display:none; background:var(--surface2); border-color:var(--border);">
-        <div class="flex justify-between mb-1">
-          <span class="text-muted">→ Réserve</span>
+
+      <!-- MODE MANUEL -->
+      <div id="section-manuel" style="display:none;">
+        <div style="background:var(--surface2); border-radius:var(--border-radius-sm); padding:0.75rem; margin-bottom:1rem; font-size:0.82rem; color:var(--muted);">
+          💡 Saisis les montants directement. Le champ restant se complète automatiquement.
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label style="color:#10b981;">🏦 Réserve (FCFA)</label>
+            <input type="number" id="input-reserve" min="0" step="1" placeholder="0"
+              oninput="onManuelChange('reserve')">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label style="color:#3b82f6;">📅 Budget semaine (FCFA)</label>
+            <input type="number" id="input-budget" min="0" step="1" placeholder="0"
+              oninput="onManuelChange('budget')">
+          </div>
+        </div>
+        <div id="manuel-alert" style="display:none; margin-top:0.75rem; padding:0.6rem 0.875rem; border-radius:var(--border-radius-sm); font-size:0.82rem;"></div>
+      </div>
+
+      <!-- PRÉVISUALISATION -->
+      <div id="preview" style="display:none; margin:1.25rem 0 1rem; padding:1rem; background:var(--surface2); border-radius:var(--border-radius-sm);">
+        <div style="font-size:0.75rem; color:var(--muted); margin-bottom:0.625rem; text-transform:uppercase; letter-spacing:0.05em;">Répartition prévue</div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem;">
+          <span>🏦 Réserve</span>
           <span class="green font-bold" id="preview-reserve">—</span>
         </div>
-        <div class="flex justify-between">
-          <span class="text-muted">→ Budget semaine</span>
+        <div style="display:flex; justify-content:space-between; margin-bottom:0.875rem; font-size:0.9rem;">
+          <span>📅 Budget semaine</span>
           <span class="blue font-bold" id="preview-budget">—</span>
         </div>
+        <div style="height:8px; border-radius:999px; overflow:hidden; display:flex;">
+          <div id="bar-reserve" style="height:100%; background:#10b981; transition:width 0.25s; width:30%;"></div>
+          <div id="bar-budget"  style="height:100%; background:#3b82f6; transition:width 0.25s; flex:1;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--muted); margin-top:4px;">
+          <span id="preview-rpct">30%</span>
+          <span id="preview-bpct">70%</span>
+        </div>
       </div>
-      <button class="btn btn-success w-full">✅ Enregistrer le revenu</button>
+
+      <button type="submit" id="submit-btn" class="btn btn-success w-full" disabled style="opacity:0.5;">
+        ✅ Enregistrer le revenu
+      </button>
     </form>
   </div>
 </div>
+
 <script>
-function updateRange(v){
-  document.getElementById('range-display').textContent = v+'%';
-  document.getElementById('reserve-pct').textContent = v+'%';
-  document.getElementById('budget-pct').textContent = (100-v)+'%';
+let currentMode = 'auto';
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('mode-input').value = mode;
+  const isAuto = mode === 'auto';
+
+  const btnAuto   = document.getElementById('btn-auto');
+  const btnManuel = document.getElementById('btn-manuel');
+  btnAuto.style.border      = isAuto ? '2px solid var(--blue)' : '1px solid var(--border)';
+  btnAuto.style.background  = isAuto ? 'rgba(59,130,246,0.1)' : 'transparent';
+  btnAuto.style.color       = isAuto ? 'var(--text)' : 'var(--muted)';
+  btnManuel.style.border    = !isAuto ? '2px solid var(--blue)' : '1px solid var(--border)';
+  btnManuel.style.background= !isAuto ? 'rgba(59,130,246,0.1)' : 'transparent';
+  btnManuel.style.color     = !isAuto ? 'var(--text)' : 'var(--muted)';
+
+  document.getElementById('section-auto').style.display   = isAuto ? 'block' : 'none';
+  document.getElementById('section-manuel').style.display = isAuto ? 'none'  : 'block';
+  document.getElementById('manuel-alert').style.display   = 'none';
   updatePreview();
 }
-function updatePreview(){
-  const m = parseFloat(document.querySelector('[name=montant]').value);
-  const r = parseInt(document.getElementById('reserve_range').value)/100;
-  if(m && m > 0){
-    document.getElementById('preview').style.display = 'block';
-    document.getElementById('preview-reserve').textContent = (m*r).toFixed(2)+' €';
-    document.getElementById('preview-budget').textContent = (m*(1-r)).toFixed(2)+' €';
-  } else {
-    document.getElementById('preview').style.display = 'none';
-  }
+
+function fmt(n) {
+  return Math.round(n).toLocaleString('fr-FR') + ' FCFA';
 }
-document.querySelector('[name=montant]').addEventListener('input', updatePreview);
+
+function getMontant() {
+  return parseFloat(document.getElementById('montant').value) || 0;
+}
+
+function onMontantChange() {
+  if (currentMode === 'manuel') {
+    const m = getMontant();
+    const r = parseFloat(document.getElementById('input-reserve').value) || 0;
+    const b = parseFloat(document.getElementById('input-budget').value) || 0;
+    // Si réserve est saisie mais pas le budget, on complète
+    if (r > 0 && b === 0 && m > r) {
+      document.getElementById('input-budget').value = Math.round(m - r);
+    } else if (b > 0 && r === 0 && m > b) {
+      document.getElementById('input-reserve').value = Math.round(m - b);
+    }
+  }
+  updatePreview();
+}
+
+function onRangeChange(v) {
+  document.getElementById('range-display').textContent  = v + '%';
+  document.getElementById('reserve-pct').textContent    = v + '%';
+  document.getElementById('budget-pct').textContent     = (100 - v) + '%';
+  document.getElementById('reserve_pct_hidden').value   = v;
+  updatePreview();
+}
+
+function onManuelChange(changed) {
+  const m = getMontant();
+  if (m <= 0) return;
+  const rInput = document.getElementById('input-reserve');
+  const bInput = document.getElementById('input-budget');
+  const rVal = parseFloat(rInput.value) || 0;
+  const bVal = parseFloat(bInput.value) || 0;
+
+  // Auto-complétion du champ opposé
+  if (changed === 'reserve' && rVal >= 0) {
+    const reste = Math.round(m - rVal);
+    if (reste >= 0) bInput.value = reste;
+  } else if (changed === 'budget' && bVal >= 0) {
+    const reste = Math.round(m - bVal);
+    if (reste >= 0) rInput.value = reste;
+  }
+  updatePreview();
+}
+
+function updatePreview() {
+  const m = getMontant();
+  const preview   = document.getElementById('preview');
+  const btn       = document.getElementById('submit-btn');
+  const alertBox  = document.getElementById('manuel-alert');
+
+  if (m <= 0) {
+    preview.style.display = 'none';
+    btn.disabled = true; btn.style.opacity = '0.5';
+    return;
+  }
+
+  let reservePart, budgetPart, valid = true;
+
+  if (currentMode === 'auto') {
+    const pct   = parseInt(document.getElementById('reserve_range').value) / 100;
+    reservePart = Math.round(m * pct);
+    budgetPart  = Math.round(m - reservePart);
+    document.getElementById('reserve_pct_hidden').value = Math.round(pct * 100);
+  } else {
+    reservePart = parseFloat(document.getElementById('input-reserve').value) || 0;
+    budgetPart  = parseFloat(document.getElementById('input-budget').value)  || 0;
+    const total = reservePart + budgetPart;
+
+    if (total === 0) {
+      preview.style.display = 'none';
+      btn.disabled = true; btn.style.opacity = '0.5';
+      return;
+    }
+
+    if (Math.abs(total - m) > 1) {
+      const diff = m - total;
+      alertBox.style.display    = 'block';
+      alertBox.style.background = '#7f1d1d';
+      alertBox.style.color      = '#fca5a5';
+      alertBox.style.border     = '1px solid #991b1b';
+      alertBox.textContent      = `⚠️ Somme saisie (${fmt(total)}) ≠ montant total (${fmt(m)}). Différence : ${fmt(Math.abs(diff))}.`;
+      valid = false;
+    } else {
+      alertBox.style.display = 'none';
+    }
+
+    document.getElementById('reserve_montant_hidden').value = Math.round(reservePart);
+    document.getElementById('budget_montant_hidden').value  = Math.round(budgetPart);
+  }
+
+  // Afficher preview
+  preview.style.display = 'block';
+  document.getElementById('preview-reserve').textContent = fmt(reservePart);
+  document.getElementById('preview-budget').textContent  = fmt(budgetPart);
+
+  const rPct = m > 0 ? Math.round(reservePart / m * 100) : 0;
+  document.getElementById('preview-rpct').textContent    = rPct + '%';
+  document.getElementById('preview-bpct').textContent    = (100 - rPct) + '%';
+  document.getElementById('bar-reserve').style.width     = rPct + '%';
+
+  btn.disabled = !valid;
+  btn.style.opacity = valid ? '1' : '0.5';
+}
+
+updatePreview();
 </script>
 {% endblock %}
