@@ -1,0 +1,305 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-3">
+  <h1 style="font-size:1.5rem; font-weight:700; margin-bottom:0.25rem;">📊 Statistiques</h1>
+  <p class="text-muted">Analyse de tes finances</p>
+</div>
+
+<!-- ONGLETS -->
+<div style="display:flex; gap:0.5rem; margin-bottom:1.5rem; border-bottom:1px solid var(--border); padding-bottom:0;">
+  <button onclick="showTab('semaine')" id="tab-semaine" class="tab-btn active-tab">Cette semaine</button>
+  <button onclick="showTab('mois')" id="tab-mois" class="tab-btn">Ce mois</button>
+  <button onclick="showTab('tendance')" id="tab-tendance" class="tab-btn">Tendance 6 mois</button>
+</div>
+
+<!-- ══ ONGLET SEMAINE ══════════════════════════════════════════════════════ -->
+<div id="tab-content-semaine">
+
+  <!-- KPIs semaine -->
+  <div class="grid-3 mb-3">
+    <div class="stat-card">
+      <div class="stat-label">Dépenses semaine</div>
+      <div class="stat-value red" style="font-size:1.3rem;">{{ total_week_exp|cfa }}</div>
+      {% if weekly %}<div class="stat-sub">sur {{ weekly.total_amount|cfa }} budgétés</div>{% endif %}
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Reste budget semaine</div>
+      {% set reste_sem = (weekly.total_amount - total_week_exp) if weekly else 0 %}
+      <div class="stat-value {{ 'green' if reste_sem >= 0 else 'red' }}" style="font-size:1.3rem;">{{ reste_sem|cfa }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Utilisation</div>
+      {% set pct_sem = (total_week_exp / weekly.total_amount * 100) if weekly and weekly.total_amount > 0 else 0 %}
+      <div class="stat-value {{ 'red' if pct_sem > 90 else 'amber' if pct_sem > 70 else 'green' }}" style="font-size:1.3rem;">{{ "%.1f"|format(pct_sem) }}%</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Graphique dépenses par jour -->
+    <div class="card">
+      <div class="section-title">Dépenses vs Budget par jour</div>
+      <div style="position:relative; height:220px;">
+        <canvas id="chartDailyWeek"></canvas>
+      </div>
+    </div>
+
+    <!-- Répartition par catégorie semaine -->
+    <div class="card">
+      <div class="section-title">Répartition par catégorie</div>
+      {% if by_cat_week %}
+      <div style="position:relative; height:180px; margin-bottom:1rem;">
+        <canvas id="chartCatWeek"></canvas>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+        {% for c in by_cat_week %}
+        <span style="display:flex; align-items:center; gap:5px; font-size:0.78rem; color:var(--muted);">
+          <span style="width:10px; height:10px; border-radius:2px; background:{{ c.color }}; flex-shrink:0;"></span>
+          {{ c.icon }} {{ c.name }} — <strong style="color:var(--text);">{{ c.total|cfa }}</strong>
+        </span>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="text-align:center; padding:2rem; color:var(--muted);">Aucune dépense cette semaine.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Détail par catégorie semaine -->
+  {% if by_cat_week %}
+  <div class="card mt-2" style="padding:1rem;">
+    <div class="section-title">Détail par catégorie — semaine</div>
+    {% set max_cat = by_cat_week[0].total %}
+    {% for c in by_cat_week %}
+    <div style="margin-bottom:0.875rem;">
+      <div style="display:flex; justify-content:space-between; font-size:0.875rem; margin-bottom:4px;">
+        <span>{{ c.icon }} {{ c.name }}</span>
+        <span class="font-bold">{{ c.total|cfa }} <span class="text-muted" style="font-weight:400;">({{ "%.0f"|format(c.total / total_week_exp * 100) if total_week_exp > 0 else 0 }}%)</span></span>
+      </div>
+      <div class="progress">
+        <div class="progress-bar" style="width:{{ (c.total / max_cat * 100) if max_cat > 0 else 0 }}%; background:{{ c.color }};"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══ ONGLET MOIS ══════════════════════════════════════════════════════════ -->
+<div id="tab-content-mois" style="display:none;">
+
+  <div class="grid-3 mb-3">
+    <div class="stat-card">
+      <div class="stat-label">Revenus ce mois</div>
+      <div class="stat-value green" style="font-size:1.3rem;">+{{ total_month_inc|cfa }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Dépenses ce mois</div>
+      <div class="stat-value red" style="font-size:1.3rem;">-{{ total_month_exp|cfa }}</div>
+    </div>
+    <div class="stat-card">
+      {% set epargne = total_month_inc - total_month_exp %}
+      <div class="stat-label">Épargne nette</div>
+      <div class="stat-value {{ 'green' if epargne >= 0 else 'red' }}" style="font-size:1.3rem;">{{ epargne|cfa }}</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Donut par catégorie mois -->
+    <div class="card">
+      <div class="section-title">Répartition par catégorie</div>
+      {% if by_cat_month %}
+      <div style="position:relative; height:200px; margin-bottom:1rem;">
+        <canvas id="chartCatMonth"></canvas>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+        {% for c in by_cat_month %}
+        <span style="display:flex; align-items:center; gap:5px; font-size:0.78rem; color:var(--muted);">
+          <span style="width:10px; height:10px; border-radius:2px; background:{{ c.color }}; flex-shrink:0;"></span>
+          {{ c.icon }} {{ c.name }} — <strong style="color:var(--text);">{{ c.total|cfa }}</strong>
+        </span>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div style="text-align:center; padding:2rem; color:var(--muted);">Aucune dépense ce mois.</div>
+      {% endif %}
+    </div>
+
+    <!-- Revenus vs Dépenses -->
+    <div class="card">
+      <div class="section-title">Revenus vs Dépenses</div>
+      <div style="position:relative; height:200px;">
+        <canvas id="chartIncomeVsExp"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Détail par catégorie mois -->
+  {% if by_cat_month %}
+  <div class="card mt-2" style="padding:1rem;">
+    <div class="section-title">Détail par catégorie — mois</div>
+    {% set max_cat_m = by_cat_month[0].total %}
+    {% for c in by_cat_month %}
+    <div style="margin-bottom:0.875rem;">
+      <div style="display:flex; justify-content:space-between; font-size:0.875rem; margin-bottom:4px;">
+        <span>{{ c.icon }} {{ c.name }}</span>
+        <span class="font-bold">{{ c.total|cfa }} <span class="text-muted" style="font-weight:400;">({{ "%.0f"|format(c.total / total_month_exp * 100) if total_month_exp > 0 else 0 }}%)</span></span>
+      </div>
+      <div class="progress">
+        <div class="progress-bar" style="width:{{ (c.total / max_cat_m * 100) if max_cat_m > 0 else 0 }}%; background:{{ c.color }};"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══ ONGLET TENDANCE 6 MOIS ══════════════════════════════════════════════ -->
+<div id="tab-content-tendance" style="display:none;">
+  <div class="card mb-2">
+    <div class="section-title">Revenus & Dépenses sur 6 mois</div>
+    <div style="position:relative; height:280px;">
+      <canvas id="chartTrend"></canvas>
+    </div>
+  </div>
+
+  <div class="card" style="padding:1rem;">
+    <div class="section-title">Résumé mensuel</div>
+    <table>
+      <thead><tr>
+        <th>Mois</th><th class="text-right">Revenus</th><th class="text-right">Dépenses</th><th class="text-right">Épargne</th>
+      </tr></thead>
+      <tbody>
+      {% for m in monthly_trend %}
+      <tr>
+        <td style="font-size:0.875rem;">{{ m.month }}</td>
+        <td class="text-right green" style="font-size:0.875rem;">+{{ m.income|cfa }}</td>
+        <td class="text-right red" style="font-size:0.875rem;">-{{ m.expenses|cfa }}</td>
+        {% set ep = m.income - m.expenses %}
+        <td class="text-right font-bold {{ 'green' if ep >= 0 else 'red' }}" style="font-size:0.875rem;">{{ ep|cfa }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+.tab-btn {
+  background: none; border: none; padding: 0.5rem 1rem;
+  color: var(--muted); cursor: pointer; font-size: 0.9rem;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: all 0.15s;
+}
+.tab-btn:hover { color: var(--text); }
+.active-tab { color: var(--text) !important; border-bottom-color: var(--blue) !important; font-weight: 500; }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+function showTab(name) {
+  ['semaine','mois','tendance'].forEach(t => {
+    document.getElementById('tab-content-'+t).style.display = t===name ? 'block' : 'none';
+    document.getElementById('tab-'+t).classList.toggle('active-tab', t===name);
+  });
+}
+
+// ── Données depuis Jinja ────────────────────────────────────────────────────
+const dailyWeek = {{ daily_week | tojson }};
+const catWeek   = {{ by_cat_week | tojson }};
+const catMonth  = {{ by_cat_month | tojson }};
+const trend     = {{ monthly_trend | tojson }};
+const monthInc  = {{ total_month_inc }};
+const monthExp  = {{ total_month_exp }};
+
+// ── Graphique dépenses vs budget par jour ──────────────────────────────────
+new Chart(document.getElementById('chartDailyWeek'), {
+  type: 'bar',
+  data: {
+    labels: dailyWeek.map(d => d.label + (d.is_today ? ' ●' : '')),
+    datasets: [
+      { label: 'Budget', data: dailyWeek.map(d => d.budget),
+        backgroundColor: 'rgba(59,130,246,0.2)', borderColor: '#3b82f6', borderWidth: 1.5, borderRadius: 4 },
+      { label: 'Dépensé', data: dailyWeek.map(d => d.spent),
+        backgroundColor: dailyWeek.map(d => d.spent > d.budget ? '#ef4444' : '#10b981'),
+        borderRadius: 4 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { font: { size: 11 }, color: '#888780' }, grid: { display: false } },
+      y: { ticks: { font: { size: 11 }, color: '#888780', callback: v => v.toLocaleString('fr-FR') + ' FCFA' }, grid: { color: 'rgba(180,178,169,0.15)' } }
+    }
+  }
+});
+
+// ── Donut catégories semaine ───────────────────────────────────────────────
+if (catWeek.length) {
+  new Chart(document.getElementById('chartCatWeek'), {
+    type: 'doughnut',
+    data: {
+      labels: catWeek.map(c => c.icon + ' ' + c.name),
+      datasets: [{ data: catWeek.map(c => c.total), backgroundColor: catWeek.map(c => c.color), borderWidth: 2, borderColor: '#1e293b' }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '65%' }
+  });
+}
+
+// ── Donut catégories mois ─────────────────────────────────────────────────
+if (catMonth.length) {
+  new Chart(document.getElementById('chartCatMonth'), {
+    type: 'doughnut',
+    data: {
+      labels: catMonth.map(c => c.icon + ' ' + c.name),
+      datasets: [{ data: catMonth.map(c => c.total), backgroundColor: catMonth.map(c => c.color), borderWidth: 2, borderColor: '#1e293b' }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '65%' }
+  });
+}
+
+// ── Revenus vs Dépenses mois ──────────────────────────────────────────────
+new Chart(document.getElementById('chartIncomeVsExp'), {
+  type: 'bar',
+  data: {
+    labels: ['Ce mois'],
+    datasets: [
+      { label: 'Revenus', data: [monthInc], backgroundColor: '#10b981', borderRadius: 6 },
+      { label: 'Dépenses', data: [monthExp], backgroundColor: '#ef4444', borderRadius: 6 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { font: { size: 11 }, color: '#888780' }, grid: { display: false } },
+      y: { ticks: { font: { size: 11 }, color: '#888780', callback: v => v.toLocaleString('fr-FR') + ' FCFA' }, grid: { color: 'rgba(180,178,169,0.15)' } }
+    }
+  }
+});
+
+// ── Tendance 6 mois ───────────────────────────────────────────────────────
+new Chart(document.getElementById('chartTrend'), {
+  type: 'line',
+  data: {
+    labels: trend.map(m => m.month),
+    datasets: [
+      { label: 'Revenus', data: trend.map(m => m.income),
+        borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)',
+        fill: true, tension: 0.3, pointRadius: 4, borderWidth: 2 },
+      { label: 'Dépenses', data: trend.map(m => m.expenses),
+        borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)',
+        fill: true, tension: 0.3, pointRadius: 4, borderWidth: 2 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { font: { size: 11 }, color: '#888780' }, grid: { display: false } },
+      y: { ticks: { font: { size: 11 }, color: '#888780', callback: v => v.toLocaleString('fr-FR') + ' FCFA' }, grid: { color: 'rgba(180,178,169,0.15)' } }
+    }
+  }
+});
+</script>
+{% endblock %}

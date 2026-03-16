@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-3">
+  <h1 style="font-size:1.5rem; font-weight:700;">🏦 Gestion de la Réserve</h1>
+  <p class="text-muted">Alimente, retire ou ajuste ton épargne directement.</p>
+</div>
+
+<!-- SOLDE PRINCIPAL -->
+<div style="max-width:900px;">
+  <div class="stat-card mb-3" style="border-left:3px solid #10b981; padding:1.5rem;">
+    <div class="stat-label">Solde actuel de la réserve</div>
+    <div class="stat-value green" style="font-size:2rem;">{{ reserve_bal|cfa }}</div>
+    <div class="stat-sub">Budget semaine disponible : {{ budget_bal|cfa }}</div>
+  </div>
+
+  <div class="grid-3 mb-3">
+
+    <!-- ALIMENTER -->
+    <div class="card" style="border-top:3px solid #10b981;">
+      <div class="section-title" style="color:#10b981;">➕ Alimenter la réserve</div>
+      <p class="text-muted mb-2" style="font-size:0.82rem;">Ajoute de l'argent directement dans ta réserve sans passer par un revenu.</p>
+      <form method="POST">
+        <input type="hidden" name="action" value="credit">
+        <div class="form-group">
+          <label>Montant (FCFA)</label>
+          <input type="number" name="montant" min="1" step="1" placeholder="Ex: 50 000" required>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" name="description" placeholder="Ex: Épargne manuelle, Bonus...">
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" name="date" value="{{ today }}">
+        </div>
+        <button class="btn btn-success w-full">➕ Ajouter à la réserve</button>
+      </form>
+    </div>
+
+    <!-- RETIRER -->
+    <div class="card" style="border-top:3px solid #ef4444;">
+      <div class="section-title" style="color:#ef4444;">➖ Retirer de la réserve</div>
+      <p class="text-muted mb-2" style="font-size:0.82rem;">Retrait direct pour une dépense imprévue ou un autre usage hors budget.</p>
+      <form method="POST">
+        <input type="hidden" name="action" value="debit">
+        <div class="form-group">
+          <label>Montant (FCFA)</label>
+          <input type="number" name="montant" min="1" step="1" max="{{ reserve_bal }}"
+            placeholder="Max : {{ reserve_bal|cfa }}" required>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" name="description" placeholder="Ex: Urgence, Réparation...">
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" name="date" value="{{ today }}">
+        </div>
+        <button class="btn btn-danger w-full">➖ Retirer de la réserve</button>
+      </form>
+    </div>
+
+    <!-- AJUSTEMENT -->
+    <div class="card" style="border-top:3px solid #f59e0b;">
+      <div class="section-title" style="color:#f59e0b;">🎯 Définir un solde précis</div>
+      <p class="text-muted mb-2" style="font-size:0.82rem;">Force la réserve à un montant exact. L'app calcule et enregistre la différence automatiquement.</p>
+      <form method="POST">
+        <input type="hidden" name="action" value="ajustement">
+        <div class="form-group">
+          <label>Nouveau solde souhaité (FCFA)</label>
+          <input type="number" name="montant" min="0" step="1"
+            placeholder="Ex: 200 000" required
+            oninput="updateDiff(this.value)">
+        </div>
+        <div id="diff-preview" style="display:none; padding:0.6rem 0.875rem; border-radius:var(--border-radius-sm); font-size:0.83rem; margin-bottom:1rem;"></div>
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" name="description" placeholder="Ex: Correction solde...">
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" name="date" value="{{ today }}">
+        </div>
+        <button class="btn w-full" style="background:#f59e0b; color:white;">🎯 Appliquer l'ajustement</button>
+      </form>
+    </div>
+
+  </div>
+
+  <!-- HISTORIQUE DES OPÉRATIONS SUR LA RÉSERVE -->
+  <div class="section-title">📋 Historique de la réserve</div>
+  <div class="card" style="padding:0; overflow:hidden;">
+    {% if historique %}
+    <table>
+      <thead><tr>
+        <th>Type</th><th>Description</th><th>Date</th><th class="text-right">Montant</th><th class="text-right">Sens</th>
+      </tr></thead>
+      <tbody>
+      {% for op in historique %}
+      {% set is_credit = op.destination == 'reserve' %}
+      <tr>
+        <td style="width:36px; text-align:center; font-size:1rem;">
+          {% if op.type == 'reserve_credit' %}➕
+          {% elif op.type == 'reserve_debit' %}➖
+          {% elif op.type == 'adjustment' %}🎯
+          {% elif op.type == 'allocation' %}📥
+          {% elif op.type == 'transfer' %}↔️
+          {% elif op.type == 'week_close' %}🔒
+          {% elif op.type in ('loan','loan_received') %}🤝
+          {% elif op.type == 'repayment' %}💵
+          {% elif op.type in ('expense_reserve') %}💸
+          {% else %}📋{% endif %}
+        </td>
+        <td style="font-size:0.875rem;">{{ op.description or '—' }}</td>
+        <td class="text-muted" style="font-size:0.8rem; white-space:nowrap;">{{ op.date }}</td>
+        <td class="text-right font-bold" style="white-space:nowrap;">
+          {{ op.amount|cfa }}
+        </td>
+        <td class="text-right" style="white-space:nowrap;">
+          {% if is_credit %}
+            <span class="badge badge-green">+ Entrée</span>
+          {% else %}
+            <span class="badge badge-red">− Sortie</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:3rem; text-align:center; color:var(--muted);">Aucune opération sur la réserve.</div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+const reserveBal = {{ reserve_bal }};
+function updateDiff(val) {
+  const nouveau = parseFloat(val) || 0;
+  const diff    = nouveau - reserveBal;
+  const box     = document.getElementById('diff-preview');
+  if (!val || diff === 0) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  if (diff > 0) {
+    box.style.background = '#064e3b';
+    box.style.color = '#6ee7b7';
+    box.style.border = '1px solid #065f46';
+    box.textContent = `➕ La réserve sera créditée de ${Math.round(diff).toLocaleString('fr-FR')} FCFA`;
+  } else {
+    box.style.background = '#7f1d1d';
+    box.style.color = '#fca5a5';
+    box.style.border = '1px solid #991b1b';
+    box.textContent = `➖ La réserve sera débitée de ${Math.round(Math.abs(diff)).toLocaleString('fr-FR')} FCFA`;
+  }
+}
+</script>
+{% endblock %}
