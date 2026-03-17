@@ -5,11 +5,13 @@
 </div>
 
 <div class="grid-2">
+
+  <!-- ══ COLONNE GAUCHE : Formulaire ══════════════════════════════════════════ -->
   <div>
     <div class="card mb-2">
       <div class="section-title">Enregistrer un prêt</div>
       <div class="card-sm mb-2" style="border-left:3px solid #3b82f6; font-size:0.83rem; color:var(--muted);">
-        💡 Un prêt <strong style="color:var(--text);">donné</strong> débite automatiquement la réserve ({{ "%.2f"|format(reserve_bal) }} €).<br>
+        💡 Un prêt <strong style="color:var(--text);">donné</strong> débite automatiquement la réserve ({{ reserve_bal|cfa }}).<br>
         Un remboursement reçu la crédite automatiquement.
       </div>
       <form method="POST">
@@ -26,8 +28,8 @@
           </select>
         </div>
         <div class="form-group">
-          <label>Montant (€)</label>
-          <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required>
+          <label>Montant (FCFA)</label>
+          <input type="number" name="amount" step="1" min="1" placeholder="Ex: 25 000" required>
         </div>
         <div class="form-group">
           <label>Description / Raison</label>
@@ -40,17 +42,43 @@
         <button class="btn btn-primary w-full">✅ Enregistrer le prêt</button>
       </form>
     </div>
+
+    <!-- Résumé rapide -->
+    {% set actifs = loans | selectattr('status', 'equalto', 'active') | list %}
+    {% set clos   = loans | selectattr('status', 'equalto', 'paid')   | list %}
+    {% if loans %}
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+      <div class="stat-card">
+        <div class="stat-label">Prêts actifs</div>
+        <div class="stat-value amber" style="font-size:1.3rem;">{{ actifs|length }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Prêts remboursés</div>
+        <div class="stat-value green" style="font-size:1.3rem;">{{ clos|length }}</div>
+      </div>
+    </div>
+    {% endif %}
   </div>
 
+  <!-- ══ COLONNE DROITE : Liste des prêts ═════════════════════════════════════ -->
   <div>
     <div class="section-title">Prêts en cours</div>
+
     {% if loans %}
     {% for loan in loans %}
-    <div class="card mb-2" style="border-left:3px solid {{ '#10b981' if loan.direction=='given' else '#3b82f6' }}; {{ 'opacity:0.55;' if loan.status=='paid' else '' }}">
+    {% set payments = payments_by_loan.get(loan.id, []) %}
+    {% set color = '#10b981' if loan.direction=='given' else '#3b82f6' %}
+
+    <div class="card mb-2" style="border-left:3px solid {{ color }}; {{ 'opacity:0.55;' if loan.status=='paid' else '' }}">
+
+      <!-- En-tête du prêt -->
       <div class="flex justify-between mb-1">
         <div>
           <div style="font-weight:600; font-size:0.95rem;">
             {{ '💸' if loan.direction=='given' else '💰' }} {{ loan.person_name }}
+            {% if loan.status == 'paid' %}
+              <span class="badge badge-green" style="margin-left:6px;">✅ Soldé</span>
+            {% endif %}
           </div>
           <div class="text-muted" style="font-size:0.78rem;">
             {{ 'Prêté le' if loan.direction=='given' else 'Emprunté le' }} {{ loan.date }}
@@ -58,39 +86,124 @@
           </div>
         </div>
         <div class="text-right">
-          <div class="{{ 'green' if loan.direction=='given' else 'blue' }} font-bold">{{ "%.2f"|format(loan.amount) }} €</div>
-          <div class="text-muted" style="font-size:0.78rem;">Reste : {{ "%.2f"|format(loan.remaining) }} €</div>
+          <div class="font-bold" style="color:{{ color }};">{{ loan.amount|cfa }}</div>
+          {% if loan.status == 'active' %}
+          <div class="text-muted" style="font-size:0.78rem;">Reste : <strong style="color:{{ color }};">{{ loan.remaining|cfa }}</strong></div>
+          {% endif %}
         </div>
       </div>
 
+      <!-- Barre de progression -->
       {% if loan.amount > 0 %}
       {% set paid_pct = ((loan.amount - loan.remaining) / loan.amount * 100) %}
       <div class="progress mb-1">
-        <div class="progress-bar" style="width:{{ paid_pct }}%; background:{{ '#10b981' if loan.direction=='given' else '#3b82f6' }};"></div>
+        <div class="progress-bar" style="width:{{ paid_pct }}%; background:{{ color }};"></div>
       </div>
-      <div class="text-muted" style="font-size:0.75rem; margin-bottom:0.5rem;">
+      <div class="text-muted" style="font-size:0.75rem; margin-bottom:0.75rem;">
         {{ "%.0f"|format(paid_pct) }}% remboursé
+        {% if paid_pct > 0 %}
+        — déjà remboursé : {% set remb = loan.amount - loan.remaining %}{{ remb|cfa }}
+        {% endif %}
       </div>
       {% endif %}
 
-      {% if loan.status == 'active' and loan.remaining > 0 %}
-      <form method="POST" class="flex gap-1">
-        <input type="hidden" name="action" value="payment">
-        <input type="hidden" name="loan_id" value="{{ loan.id }}">
-        <input type="number" name="amount" step="0.01" min="0.01" max="{{ loan.remaining }}"
-          placeholder="Montant remboursé" style="flex:1; font-size:0.82rem;">
-        <button class="btn btn-sm btn-success">
-          {{ '💵 Remboursement reçu' if loan.direction=='given' else '💸 Rembourser' }}
+      <!-- Historique des remboursements -->
+      {% if payments %}
+      <div style="margin-bottom:0.75rem;">
+        <button onclick="toggleHistory({{ loan.id }})"
+          style="background:none; border:none; color:var(--muted); font-size:0.8rem; cursor:pointer; padding:0; display:flex; align-items:center; gap:0.4rem;">
+          <span id="icon-{{ loan.id }}">▶</span>
+          Voir l'historique ({{ payments|length }} remboursement{{ 's' if payments|length > 1 else '' }})
         </button>
-      </form>
-      {% elif loan.status == 'paid' %}
-      <span class="badge badge-green">✅ Remboursé intégralement</span>
+
+        <div id="history-{{ loan.id }}" style="display:none; margin-top:0.625rem;">
+          <div style="background:var(--surface2); border-radius:var(--border-radius-sm); overflow:hidden;">
+            <table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border);">
+                  <th style="padding:0.5rem 0.75rem; text-align:left; color:var(--muted); font-weight:500;">Date</th>
+                  <th style="padding:0.5rem 0.75rem; text-align:right; color:var(--muted); font-weight:500;">Montant</th>
+                  <th style="padding:0.5rem 0.75rem; text-align:left; color:var(--muted); font-weight:500;">Note</th>
+                </tr>
+              </thead>
+              <tbody>
+              {% for p in payments %}
+              <tr style="border-bottom:{{ '1px solid var(--border)' if not loop.last else 'none' }};">
+                <td style="padding:0.5rem 0.75rem; color:var(--text);">{{ p.date }}</td>
+                <td style="padding:0.5rem 0.75rem; text-align:right; font-weight:600; color:{{ color }};">{{ p.amount|cfa }}</td>
+                <td style="padding:0.5rem 0.75rem; color:var(--muted);">{{ p.note or '—' }}</td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
       {% endif %}
+
+      <!-- Formulaire de remboursement -->
+      {% if loan.status == 'active' and loan.remaining > 0 %}
+      <div style="border-top:1px solid var(--border); padding-top:0.75rem;">
+        <div style="font-size:0.8rem; color:var(--muted); margin-bottom:0.5rem; font-weight:500;">
+          {{ '💵 Enregistrer un remboursement reçu' if loan.direction=='given' else '💸 Enregistrer un remboursement effectué' }}
+        </div>
+        <form method="POST">
+          <input type="hidden" name="action" value="payment">
+          <input type="hidden" name="loan_id" value="{{ loan.id }}">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-bottom:0.5rem;">
+            <div>
+              <label style="font-size:0.75rem; color:var(--muted); display:block; margin-bottom:3px;">Montant (FCFA)</label>
+              <input type="number" name="amount" step="1" min="1" max="{{ loan.remaining }}"
+                placeholder="Max : {{ loan.remaining|cfa }}" required style="font-size:0.82rem;">
+            </div>
+            <div>
+              <label style="font-size:0.75rem; color:var(--muted); display:block; margin-bottom:3px;">Date</label>
+              <input type="date" name="date" value="{{ now.strftime('%Y-%m-%d') }}" style="font-size:0.82rem;">
+            </div>
+          </div>
+          <div style="margin-bottom:0.5rem;">
+            <label style="font-size:0.75rem; color:var(--muted); display:block; margin-bottom:3px;">Note (optionnelle)</label>
+            <input type="text" name="note" placeholder="Ex: Virement, Cash, Partiel..." style="font-size:0.82rem;">
+          </div>
+          <div style="display:flex; gap:0.5rem;">
+            <button class="btn btn-sm btn-success" style="flex:1; justify-content:center;">
+              {{ '✅ Remboursement reçu' if loan.direction=='given' else '✅ Remboursement effectué' }}
+            </button>
+            <!-- Bouton tout rembourser d'un coup -->
+            <button type="button" class="btn btn-sm btn-outline"
+              onclick="fillFull(this, {{ loan.remaining }})"
+              title="Tout rembourser en une fois">
+              Tout ({{ loan.remaining|cfa }})
+            </button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+
     </div>
     {% endfor %}
+
     {% else %}
-    <div class="card" style="text-align:center; padding:3rem; color:var(--muted);">Aucun prêt enregistré.</div>
+    <div class="card" style="text-align:center; padding:3rem; color:var(--muted);">
+      Aucun prêt enregistré.
+    </div>
     {% endif %}
   </div>
+
 </div>
+
+<script>
+function toggleHistory(id) {
+  const box  = document.getElementById('history-' + id);
+  const icon = document.getElementById('icon-' + id);
+  const open = box.style.display === 'none';
+  box.style.display  = open ? 'block' : 'none';
+  icon.textContent   = open ? '▼' : '▶';
+}
+
+function fillFull(btn, remaining) {
+  const form = btn.closest('form');
+  form.querySelector('[name=amount]').value = Math.round(remaining);
+}
+</script>
 {% endblock %}
