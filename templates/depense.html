@@ -4,32 +4,22 @@
   <h1 style="font-size:1.5rem; font-weight:700;">📤 Saisir une dépense</h1>
 </div>
 
-<div style="max-width:520px;">
-  <!-- Info logique de dépense -->
-  <div class="card-sm mb-2" style="border-left:3px solid #3b82f6; font-size:0.85rem; color:var(--muted);">
-    💡 Les dépenses utilisent d'abord le <strong style="color:var(--text);">budget semaine</strong> ({{ budget_bal|cfa }}), puis la <strong style="color:var(--text);">réserve</strong> ({{ reserve_bal|cfa }}) si nécessaire.<br>
-    Maximum disponible : <strong style="color:var(--text);">{% set max_dispo = budget_bal + reserve_bal %}{{ max_dispo|cfa }}</strong>
-  </div>
+<div style="max-width:540px;">
 
   <div class="card">
     <form method="POST">
+
       <div class="form-group">
         <label>Montant (FCFA)</label>
-        <input type="number" name="montant" id="montant" step="0.01" min="0.01"
-          max="{{ budget_bal + reserve_bal }}" placeholder="0.00" required autofocus
-          oninput="updatePreview(this.value)">
-      </div>
-
-      <!-- Prévisualisation de la source -->
-      <div id="source-preview" style="display:none; margin-bottom:1rem; padding:0.75rem; background:var(--surface2); border-radius:var(--border-radius-sm); font-size:0.85rem;">
-        <div id="preview-budget"></div>
-        <div id="preview-reserve"></div>
+        <input type="number" name="montant" id="montant" step="1" min="1" placeholder="Ex: 5 000" required autofocus
+          oninput="updatePreview()">
       </div>
 
       <div class="form-group">
         <label>Description</label>
         <input type="text" name="description" placeholder="Ex: Taxi, Courses, Médicaments...">
       </div>
+
       <div class="form-group">
         <label>Catégorie</label>
         <select name="category_id">
@@ -38,38 +28,129 @@
           {% endfor %}
         </select>
       </div>
+
+      <!-- SÉLECTEUR DE SOURCE -->
+      <div class="form-group">
+        <label>Source de la dépense</label>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.5rem; margin-top:0.25rem;">
+
+          <label id="btn-auto" onclick="setSource('auto')"
+            style="cursor:pointer; padding:0.75rem 0.5rem; border-radius:var(--border-radius-sm); border:2px solid var(--blue); background:rgba(59,130,246,0.1); text-align:center; font-size:0.8rem; color:var(--text);">
+            <input type="radio" name="source" value="auto" checked style="display:none;">
+            <div style="font-size:1.1rem; margin-bottom:3px;">🔄</div>
+            <div style="font-weight:500;">Automatique</div>
+            <div style="font-size:0.72rem; color:var(--muted); margin-top:2px;">Budget → Réserve</div>
+          </label>
+
+          <label id="btn-budget" onclick="setSource('budget')"
+            style="cursor:pointer; padding:0.75rem 0.5rem; border-radius:var(--border-radius-sm); border:1px solid var(--border); background:transparent; text-align:center; font-size:0.8rem; color:var(--muted);">
+            <input type="radio" name="source" value="budget" style="display:none;">
+            <div style="font-size:1.1rem; margin-bottom:3px;">📅</div>
+            <div style="font-weight:500;">Budget semaine</div>
+            <div style="font-size:0.72rem; margin-top:2px;">{{ budget_bal|cfa }}</div>
+          </label>
+
+          <label id="btn-reserve" onclick="setSource('reserve')"
+            style="cursor:pointer; padding:0.75rem 0.5rem; border-radius:var(--border-radius-sm); border:1px solid var(--border); background:transparent; text-align:center; font-size:0.8rem; color:var(--muted);">
+            <input type="radio" name="source" value="reserve" style="display:none;">
+            <div style="font-size:1.1rem; margin-bottom:3px;">🏦</div>
+            <div style="font-weight:500;">Réserve</div>
+            <div style="font-size:0.72rem; margin-top:2px;">{{ reserve_bal|cfa }}</div>
+          </label>
+
+        </div>
+      </div>
+
+      <!-- PRÉVISUALISATION DYNAMIQUE -->
+      <div id="preview-box"
+        style="display:none; margin-bottom:1rem; padding:0.875rem; background:var(--surface2); border-radius:var(--border-radius-sm); font-size:0.85rem;">
+        <div id="preview-content"></div>
+      </div>
+
       <div class="form-group">
         <label>Date</label>
         <input type="date" name="date" value="{{ today }}">
       </div>
+
       <button class="btn btn-danger w-full">💸 Enregistrer la dépense</button>
     </form>
   </div>
 </div>
 
 <script>
-const budgetBal  = {{ budget_bal }};
-const reserveBal = {{ reserve_bal }};
+  const budgetBal = {{ budget_bal }};
+  const reserveBal = {{ reserve_bal }};
+  let currentSource = 'auto';
 
-function updatePreview(val) {
-  const m = parseFloat(val);
-  if (!m || m <= 0) { document.getElementById('source-preview').style.display='none'; return; }
-
-  document.getElementById('source-preview').style.display = 'block';
-  let html = '';
-
-  if (m <= budgetBal) {
-    html = `<span style="color:#3b82f6;">✓ Pris sur budget semaine : ${Math.round(m).toLocaleString('fr-FR')} FCFA</span>`;
-  } else if (m <= budgetBal + reserveBal) {
-    const fromBudget  = budgetBal;
-    const fromReserve = (m - budgetBal).toFixed(0);
-    html  = `<div style="color:#3b82f6;">↳ Budget semaine : ${Math.round(fromBudget).toLocaleString('fr-FR')} FCFA</div>`;
-    html += `<div style="color:#ef4444;">↳ Réserve (complément) : ${Number(fromReserve).toLocaleString('fr-FR')} FCFA</div>`;
-  } else {
-    html = `<span style="color:#ef4444;">⚠️ Montant trop élevé (max ${Math.round(budgetBal+reserveBal).toLocaleString('fr-FR')} FCFA)</span>`;
+  function fmt(n) {
+    return Math.round(n).toLocaleString('fr-FR') + ' FCFA';
   }
 
-  document.getElementById('source-preview').innerHTML = html;
-}
+  function setSource(s) {
+    currentSource = s;
+
+    const btns = { auto: 'btn-auto', budget: 'btn-budget', reserve: 'btn-reserve' };
+    const colors = { auto: '#3b82f6', budget: '#10b981', reserve: '#f59e0b' };
+
+    // Reset tous les boutons
+    Object.keys(btns).forEach(key => {
+      const el = document.getElementById(btns[key]);
+      el.style.border = '1px solid var(--border)';
+      el.style.background = 'transparent';
+      el.style.color = 'var(--muted)';
+    });
+
+    // Activer le bouton sélectionné
+    const active = document.getElementById(btns[s]);
+    active.style.border = `2px solid ${colors[s]}`;
+    active.style.background = `rgba(${s === 'auto' ? '59,130,246' : s === 'budget' ? '16,185,129' : '245,158,11'}, 0.1)`;
+    active.style.color = 'var(--text)';
+
+    // Cocher le bon radio
+    document.querySelector(`input[name=source][value=${s}]`).checked = true;
+
+    updatePreview();
+  }
+
+  function updatePreview() {
+    const m = parseFloat(document.getElementById('montant').value) || 0;
+    const box = document.getElementById('preview-box');
+    const cnt = document.getElementById('preview-content');
+
+    if (m <= 0) { box.style.display = 'none'; return; }
+
+    box.style.display = 'block';
+    let html = '';
+
+    if (currentSource === 'budget') {
+      if (m <= budgetBal) {
+        html = `<span style="color:#10b981;">✅ Pris sur le budget semaine : <strong>${fmt(m)}</strong></span>`;
+      } else {
+        html = `<span style="color:#ef4444;">⚠️ Budget semaine insuffisant. Disponible : <strong>${fmt(budgetBal)}</strong><br>Manque : <strong>${fmt(m - budgetBal)}</strong> — choisissez "Automatique" ou "Réserve".</span>`;
+      }
+
+    } else if (currentSource === 'reserve') {
+      if (m <= reserveBal) {
+        html = `<span style="color:#f59e0b;">✅ Pris sur la réserve : <strong>${fmt(m)}</strong></span>`;
+      } else {
+        html = `<span style="color:#ef4444;">⚠️ Réserve insuffisante. Disponible : <strong>${fmt(reserveBal)}</strong><br>Manque : <strong>${fmt(m - reserveBal)}</strong> — choisissez "Automatique" ou "Budget semaine".</span>`;
+      }
+
+    } else {
+      // Mode automatique
+      if (m <= budgetBal) {
+        html = `<span style="color:#3b82f6;">✅ Entièrement pris sur le budget semaine : <strong>${fmt(m)}</strong></span>`;
+      } else if (m <= budgetBal + reserveBal) {
+        const fromBudget = budgetBal;
+        const fromReserve = m - fromBudget;
+        html = `<div style="color:#3b82f6; margin-bottom:4px;">↳ Budget semaine : <strong>${fmt(fromBudget)}</strong></div>`;
+        html += `<div style="color:#f59e0b;">↳ Réserve (complément) : <strong>${fmt(fromReserve)}</strong></div>`;
+      } else {
+        html = `<span style="color:#ef4444;">⚠️ Montant trop élevé. Maximum disponible : <strong>${fmt(budgetBal + reserveBal)}</strong></span>`;
+      }
+    }
+
+    cnt.innerHTML = html;
+  }
 </script>
 {% endblock %}
