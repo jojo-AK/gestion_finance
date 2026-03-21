@@ -78,8 +78,8 @@
 </div>
 
 <script>
-  const budgetBal = {{ budget_bal }};
-  const reserveBal = {{ reserve_bal }};
+  const budgetBal = {{ budget_bal | tojson }};
+  const reserveBal = {{ reserve_bal | tojson }};
   let currentSource = 'auto';
 
   function fmt(n) {
@@ -92,7 +92,6 @@
     const btns = { auto: 'btn-auto', budget: 'btn-budget', reserve: 'btn-reserve' };
     const colors = { auto: '#3b82f6', budget: '#10b981', reserve: '#f59e0b' };
 
-    // Reset tous les boutons
     Object.keys(btns).forEach(key => {
       const el = document.getElementById(btns[key]);
       el.style.border = '1px solid var(--border)';
@@ -100,13 +99,11 @@
       el.style.color = 'var(--muted)';
     });
 
-    // Activer le bouton sélectionné
     const active = document.getElementById(btns[s]);
     active.style.border = `2px solid ${colors[s]}`;
     active.style.background = `rgba(${s === 'auto' ? '59,130,246' : s === 'budget' ? '16,185,129' : '245,158,11'}, 0.1)`;
     active.style.color = 'var(--text)';
 
-    // Cocher le bon radio
     document.querySelector(`input[name=source][value=${s}]`).checked = true;
 
     updatePreview();
@@ -128,16 +125,13 @@
       } else {
         html = `<span style="color:#ef4444;">⚠️ Budget semaine insuffisant. Disponible : <strong>${fmt(budgetBal)}</strong><br>Manque : <strong>${fmt(m - budgetBal)}</strong> — choisissez "Automatique" ou "Réserve".</span>`;
       }
-
     } else if (currentSource === 'reserve') {
       if (m <= reserveBal) {
         html = `<span style="color:#f59e0b;">✅ Pris sur la réserve : <strong>${fmt(m)}</strong></span>`;
       } else {
         html = `<span style="color:#ef4444;">⚠️ Réserve insuffisante. Disponible : <strong>${fmt(reserveBal)}</strong><br>Manque : <strong>${fmt(m - reserveBal)}</strong> — choisissez "Automatique" ou "Budget semaine".</span>`;
       }
-
     } else {
-      // Mode automatique
       if (m <= budgetBal) {
         html = `<span style="color:#3b82f6;">✅ Entièrement pris sur le budget semaine : <strong>${fmt(m)}</strong></span>`;
       } else if (m <= budgetBal + reserveBal) {
