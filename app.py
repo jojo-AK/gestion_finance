@@ -1,9 +1,6 @@
-
-from datetime import datetime, timedelta
-import sqlite3
 from flask import Flask, render_template, request, redirect, url_for, flash
-Copier
-
+import sqlite3
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 app.secret_key = "finance_app_secret"
@@ -50,7 +47,7 @@ def init_db():
         name TEXT NOT NULL,
         type TEXT NOT NULL
     );
- 
+
     CREATE TABLE IF NOT EXISTS ledger (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date TEXT NOT NULL,
@@ -62,30 +59,31 @@ def init_db():
         category_id INTEGER,
         created_at TEXT DEFAULT (datetime('now'))
     );
- 
+
     CREATE TABLE IF NOT EXISTS categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         color TEXT DEFAULT '#6366f1',
         icon TEXT DEFAULT '💰'
     );
- 
+
     CREATE TABLE IF NOT EXISTS weekly_budgets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         week_start TEXT NOT NULL UNIQUE,
         total_amount REAL NOT NULL,
         closed INTEGER DEFAULT 0
     );
- 
+
     CREATE TABLE IF NOT EXISTS daily_budgets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         weekly_budget_id INTEGER NOT NULL,
         date TEXT NOT NULL UNIQUE,
         planned REAL NOT NULL,
         carry REAL DEFAULT 0,
+        spent REAL DEFAULT 0,
         FOREIGN KEY (weekly_budget_id) REFERENCES weekly_budgets(id)
     );
- 
+
     CREATE TABLE IF NOT EXISTS loans (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         person_name TEXT NOT NULL,
@@ -96,7 +94,7 @@ def init_db():
         date TEXT NOT NULL,
         status TEXT DEFAULT 'active'
     );
- 
+
     CREATE TABLE IF NOT EXISTS loan_payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         loan_id INTEGER NOT NULL,
@@ -121,6 +119,12 @@ def init_db():
         INSERT INTO categories (name, color, icon) VALUES ('Imprévu', '#6b7280', '⚡');
         INSERT INTO categories (name, color, icon) VALUES ('Autre', '#6366f1', '📌');
         """)
+    # Migration automatique : ajouter 'spent' si absent (anciennes bases)
+    cols = [r[1]
+            for r in c.execute("PRAGMA table_info(daily_budgets)").fetchall()]
+    if 'spent' not in cols:
+        c.execute("ALTER TABLE daily_budgets ADD COLUMN spent REAL DEFAULT 0")
+
     conn.commit()
     conn.close()
 
@@ -192,10 +196,13 @@ def add_expense_smart(conn, montant, description, category_id, date, source='aut
                                 'expense_reserve', description, category_id, date)
 
     # Mettre à jour le spent du daily_budget du jour
-    conn.execute(
-        "UPDATE daily_budgets SET spent = COALESCE(spent,0) + ? WHERE date = ?",
-        (montant, date)
-    )
+    try:
+        conn.execute(
+            "UPDATE daily_budgets SET spent = COALESCE(spent,0) + ? WHERE date = ?",
+            (montant, date)
+        )
+    except Exception:
+        pass  # La colonne spent peut ne pas exister sur ancienne base
     return True, "ok"
 
 # ─── CLÔTURE DE SEMAINE ───────────────────────────────────────────────────────
@@ -763,23 +770,23 @@ def stats():
     month = today.strftime('%Y-%m')
 
     # ── Dépenses par catégorie ce mois ──
-    by_cat_month = conn.execute("""
+    by_cat_month = [dict(r) for r in conn.execute("""
         SELECT c.name, c.color, c.icon, COALESCE(SUM(l.amount),0) as total
         FROM categories c
         LEFT JOIN ledger l ON l.category_id=c.id
             AND l.type IN ('expense','expense_reserve') AND l.date LIKE ?
         GROUP BY c.id HAVING total > 0 ORDER BY total DESC
-    """, (f"{month}%",)).fetchall()
+    """, (f"{month}%",)).fetchall()]
 
     # ── Dépenses par catégorie cette semaine ──
-    by_cat_week = conn.execute("""
+    by_cat_week = [dict(r) for r in conn.execute("""
         SELECT c.name, c.color, c.icon, COALESCE(SUM(l.amount),0) as total
         FROM categories c
         LEFT JOIN ledger l ON l.category_id=c.id
             AND l.type IN ('expense','expense_reserve')
             AND l.date BETWEEN ? AND ?
         GROUP BY c.id HAVING total > 0 ORDER BY total DESC
-    """, (str(week_start), str(week_start + timedelta(days=6)))).fetchall()
+    """, (str(week_start), str(week_start + timedelta(days=6)))).fetchall()]
 
     # ── Évolution des dépenses sur les 6 derniers mois ──
     monthly_trend = []
