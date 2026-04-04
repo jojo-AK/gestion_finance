@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-3">
+  <h1 style="font-size:1.5rem; font-weight:700;">🎯 Objectifs d'épargne</h1>
+  <p class="text-muted">Réserve actuelle : <strong class="green">{{ reserve_bal|cfa }}</strong></p>
+</div>
+
+<div class="grid-2">
+
+  <!-- Formulaire ajout -->
+  <div>
+    <div class="card">
+      <div class="section-title">➕ Nouvel objectif</div>
+      <form method="POST">
+        <input type="hidden" name="action" value="add">
+        <div class="form-group">
+          <label>Nom de l'objectif</label>
+          <input type="text" name="name" placeholder="Ex: Voyage, Urgence, Voiture…" required autofocus>
+        </div>
+        <div class="form-group">
+          <label>Montant cible (FCFA)</label>
+          <input type="number" name="target_amount" min="1" step="1" placeholder="Ex: 500 000" required
+            oninput="updatePreview()">
+        </div>
+        <div class="form-group">
+          <label>Date limite (optionnelle)</label>
+          <input type="date" name="deadline" id="deadline-input" min="{{ today }}" oninput="updatePreview()">
+        </div>
+        <div id="obj-preview" style="display:none; padding:0.75rem; background:var(--surface2); border-radius:8px; font-size:0.83rem; color:var(--muted); margin-bottom:1rem;"></div>
+        <button class="btn btn-success w-full">🎯 Créer l'objectif</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Liste des objectifs -->
+  <div>
+    {% if goals %}
+    {% for g in goals %}
+    <div class="card mb-2" style="border-left:3px solid {{ '#10b981' if g.pct >= 100 else '#3b82f6' }};">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.75rem;">
+        <div>
+          <div style="font-weight:600; font-size:0.95rem;">🎯 {{ g.name }}</div>
+          {% if g.deadline %}
+          <div class="text-muted" style="font-size:0.78rem;">Échéance : {{ g.deadline }}</div>
+          {% endif %}
+        </div>
+        <form method="POST" onsubmit="return confirm('Supprimer cet objectif ?')">
+          <input type="hidden" name="action" value="delete">
+          <input type="hidden" name="goal_id" value="{{ g.id }}">
+          <button class="btn btn-sm" style="padding:0.25rem 0.5rem; background:#7f1d1d; color:#fca5a5; border:none;">🗑️</button>
+        </form>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-bottom:4px;">
+        <span class="text-muted">Progression</span>
+        <span class="font-bold" style="color:{{ '#10b981' if g.pct >= 100 else 'var(--text)' }};">
+          {{ reserve_bal|cfa }} / {{ g.target_amount|cfa }}
+        </span>
+      </div>
+      <div class="progress mb-1">
+        <div class="progress-bar" style="width:{{ g.pct }}%; background:{{ '#10b981' if g.pct >= 100 else '#3b82f6' }};"></div>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:0.78rem; color:var(--muted);">
+        <span>{{ g.pct }}% atteint</span>
+        {% if g.pct < 100 %}
+        <span>Reste : <strong style="color:var(--text);">{{ g.reste|cfa }}</strong></span>
+        {% else %}
+        <span class="green font-bold">✅ Objectif atteint !</span>
+        {% endif %}
+      </div>
+
+      {% if g.weekly_needed is not none and g.pct < 100 %}
+      <div style="margin-top:0.5rem; font-size:0.78rem; padding:0.4rem 0.6rem; background:var(--surface2); border-radius:6px; color:var(--muted);">
+        💡 À mettre de côté par semaine : <strong style="color:var(--blue);">{{ g.weekly_needed|int|cfa }}</strong>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="card" style="text-align:center; padding:3rem; color:var(--muted);">
+      Aucun objectif défini. Crée ton premier objectif d'épargne !
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+const reserveBal = {{ reserve_bal }};
+function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA'; }
+function updatePreview() {
+  const target = parseFloat(document.querySelector('[name=target_amount]').value) || 0;
+  const deadline = document.getElementById('deadline-input').value;
+  const box = document.getElementById('obj-preview');
+  if (!target) { box.style.display = 'none'; return; }
+
+  const reste = Math.max(target - reserveBal, 0);
+  const pct = Math.min(reserveBal / target * 100, 100).toFixed(1);
+  let msg = `Objectif : ${fmt(target)} — Déjà : ${fmt(reserveBal)} (${pct}%) — Reste : ${fmt(reste)}`;
+  if (deadline) {
+    const today = new Date();
+    const dl = new Date(deadline);
+    const weeks = Math.max((dl - today) / (7 * 86400000), 1);
+    const perWeek = reste > 0 ? Math.ceil(reste / weeks) : 0;
+    if (perWeek > 0) msg += ` — À épargner/semaine : ${fmt(perWeek)}`;
+  }
+  box.style.display = 'block';
+  box.textContent = msg;
+}
+</script>
+{% endblock %}

@@ -1,42 +1,90 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="mb-3">
-  <h1 style="font-size:1.5rem; font-weight:700;">📅 Budget hebdomadaire</h1>
-  <p class="text-muted">Semaine du {{ week_start.strftime('%d/%m/%Y') }}</p>
+<div class="mb-3" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+  <div>
+    <h1 style="font-size:1.5rem; font-weight:700;">📅 Budget hebdomadaire</h1>
+    <p class="text-muted">Semaine du {{ week_start.strftime('%d/%m/%Y') }}
+      {% if weekly and weekly.closed %}<span class="badge badge-gray" style="margin-left:6px;">🔒 Clôturée</span>{% endif %}
+    </p>
+  </div>
+  <!-- Navigation semaines -->
+  <div style="display:flex; align-items:center; gap:0.5rem;">
+    <a href="/budget?week={{ prev_week }}" class="btn btn-outline btn-sm">← Préc.</a>
+    {% if not is_current_week %}
+    <a href="/budget" class="btn btn-primary btn-sm">Semaine actuelle</a>
+    {% endif %}
+    {% if next_week <= today %}
+    <a href="/budget?week={{ next_week }}" class="btn btn-outline btn-sm">Suiv. →</a>
+    {% endif %}
+  </div>
 </div>
 
 <div class="grid-2">
   <div>
+    {% if is_current_week and (not weekly or not weekly.closed) %}
     <div class="card mb-2">
       <div class="section-title">{{ 'Modifier le budget' if weekly else 'Définir le budget de la semaine' }}</div>
       <form method="POST">
         <div class="form-group">
-          <label>Montant total pour la semaine (€)</label>
-          <input type="number" name="montant" step="0.01" min="0.01"
+          <label>Montant total pour la semaine (FCFA)</label>
+          <input type="number" name="montant" step="1" min="1"
             value="{{ weekly.total_amount if weekly else '' }}"
             placeholder="Ex: 50000" required autofocus
-            oninput="document.getElementById('daily-preview').style.display=this.value>0?'block':'none'; document.getElementById('daily-amt').textContent=(parseFloat(this.value)/7).toFixed(2)+' €/jour'">
+            oninput="document.getElementById('daily-preview').style.display=this.value>0?'block':'none'; document.getElementById('daily-amt').textContent=Math.round(parseFloat(this.value)/7).toLocaleString('fr-FR')+' FCFA/jour'">
         </div>
-        <div id="daily-preview" style="display:none; margin-bottom:1rem; padding:0.75rem; background:var(--surface2); border-radius:var(--border-radius-sm); font-size:0.85rem; color:var(--muted);">
+        <div id="daily-preview" style="display:none; margin-bottom:1rem; padding:0.75rem; background:var(--surface2); border-radius:8px; font-size:0.85rem; color:var(--muted);">
           Répartition automatique : <strong style="color:var(--blue);" id="daily-amt">—</strong> × 7 jours
         </div>
         <button class="btn btn-primary w-full">✅ Enregistrer</button>
       </form>
     </div>
+    {% endif %}
 
-    <!-- Clôture manuelle -->
-    {% if weekly %}
-    <div class="card-sm" style="border-left:3px solid #10b981;">
+    {% if weekly and not weekly.closed and is_current_week %}
+    <div class="card-sm mb-2" style="border-left:3px solid #10b981;">
       <div style="font-size:0.875rem; margin-bottom:0.5rem; font-weight:500;">🔒 Clôturer la semaine</div>
-      <div class="text-muted" style="font-size:0.8rem; margin-bottom:0.75rem;">
-        Le reste du budget sera transféré vers la réserve.
-      </div>
+      <div class="text-muted" style="font-size:0.8rem; margin-bottom:0.75rem;">Le reste du budget sera transféré vers la réserve.</div>
       <form method="POST" action="/budget/cloturer">
         <input type="hidden" name="week_start" value="{{ week_start }}">
-        <button class="btn btn-success btn-sm w-full" onclick="return confirm('Clôturer la semaine et transférer le reste vers la réserve ?')">
+        <button class="btn btn-success btn-sm w-full"
+          onclick="return confirm('Clôturer la semaine et transférer le reste vers la réserve ?')">
           Clôturer et transférer le reste
         </button>
       </form>
+    </div>
+    {% endif %}
+
+    <!-- Modifier budget d'un jour -->
+    {% if weekly and not weekly.closed and is_current_week %}
+    <div class="card mt-2" style="padding:1rem;">
+      <div style="font-size:0.875rem; font-weight:500; margin-bottom:0.75rem;">✏️ Modifier le budget d'un jour</div>
+      <form method="POST" action="/budget/modifier_jour" class="flex gap-1" style="flex-wrap:wrap;">
+        <input type="hidden" name="week_start" value="{{ week_start }}">
+        <select name="date" style="flex:1; min-width:120px;">
+          {% set jours = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'] %}
+          {% for d in daily_list %}
+          <option value="{{ d.date }}">{{ jours[loop.index0] }} {{ d.date[8:] }}/{{ d.date[5:7] }} ({{ d.planned|cfa }})</option>
+          {% endfor %}
+        </select>
+        <input type="number" name="planned" step="1" min="0" placeholder="Nouveau budget (FCFA)" style="flex:1; min-width:140px;">
+        <button class="btn btn-primary btn-sm">Modifier</button>
+      </form>
+    </div>
+    {% endif %}
+
+    <!-- Historique des semaines -->
+    {% if past_weeks %}
+    <div class="card mt-2" style="padding:1rem;">
+      <div style="font-size:0.875rem; font-weight:500; margin-bottom:0.75rem;">📆 Semaines précédentes</div>
+      {% for pw in past_weeks %}
+      <a href="/budget?week={{ pw.week_start }}"
+         style="display:flex; justify-content:space-between; align-items:center; padding:0.4rem 0; border-bottom:1px solid var(--border); text-decoration:none; font-size:0.82rem; color:var(--text);">
+        <span>Sem. {{ pw.week_start }}
+          {% if pw.closed %}<span class="badge badge-gray" style="font-size:0.65rem;">🔒</span>{% endif %}
+        </span>
+        <span class="text-muted">{{ pw.total_amount|cfa }}</span>
+      </a>
+      {% endfor %}
     </div>
     {% endif %}
   </div>
@@ -44,58 +92,113 @@
   <div>
     {% if weekly and daily_list %}
     <div class="section-title">Planning journalier</div>
-    <div class="card" style="padding:0; overflow:hidden;">
-      <table>
-        <thead><tr>
-          <th>Jour</th>
-          <th>Planifié</th>
-          <th style="color:#10b981; font-size:0.7rem;">Report</th>
-          <th>Dispo</th>
-          <th>Dépensé</th>
-          <th>Reste</th>
-        </tr></thead>
-        <tbody>
-        {% set jours = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'] %}
-        {% for d in daily_list %}
-        <tr {% if d.date == today %}style="background:rgba(59,130,246,0.08);"{% endif %}>
-          <td>
-            <div style="font-size:0.85rem; font-weight:{{ '600' if d.date == today else '400' }};">
-              {{ jours[loop.index0] }}
-              {% if d.date == today %}<span class="badge badge-blue" style="font-size:0.6rem; margin-left:3px;">Auj.</span>{% endif %}
-            </div>
-            <div class="text-muted" style="font-size:0.72rem;">{{ d.date[8:] }}/{{ d.date[5:7] }}</div>
-          </td>
-          <td style="font-size:0.8rem;">{{ "%.0f"|format(d.planned) }}</td>
-          <td style="font-size:0.8rem;" class="{{ 'green' if d.carry > 0 else 'text-muted' }}">
-            {% if d.carry > 0 %}+{{ "%.0f"|format(d.carry) }}{% else %}—{% endif %}
-          </td>
-          <td style="font-size:0.85rem; font-weight:500;" class="blue">{{ "%.0f"|format(d.real) }}</td>
-          <td style="font-size:0.8rem;" class="{{ 'red' if d.spent > 0 else 'text-muted' }}">{{ "%.0f"|format(d.spent) }}</td>
-          <td style="font-size:0.85rem; font-weight:600;" class="{{ 'green' if d.reste >= 0 else 'red' }}">{{ "%.0f"|format(d.reste) }}</td>
-        </tr>
-        {% endfor %}
-        </tbody>
-      </table>
+
+    {% set total_depense = daily_list | sum(attribute='spent') %}
+    {% set total_reste = weekly.total_amount - total_depense %}
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.5rem; margin-bottom:1rem;">
+      <div class="stat-card" style="padding:0.75rem;">
+        <div class="stat-label">Budget semaine</div>
+        <div style="font-size:1rem; font-weight:700; color:var(--blue);">{{ weekly.total_amount|cfa }}</div>
+      </div>
+      <div class="stat-card" style="padding:0.75rem;">
+        <div class="stat-label">Dépensé</div>
+        <div style="font-size:1rem; font-weight:700;" class="red">{{ total_depense|cfa }}</div>
+      </div>
+      <div class="stat-card" style="padding:0.75rem;">
+        <div class="stat-label">Reste semaine</div>
+        <div style="font-size:1rem; font-weight:700;" class="{{ 'green' if total_reste >= 0 else 'red' }}">{{ total_reste|cfa }}</div>
+      </div>
     </div>
 
-    <!-- Modifier budget d'un jour -->
-    <div class="card mt-2" style="padding:1rem;">
-      <div style="font-size:0.875rem; font-weight:500; margin-bottom:0.75rem;">✏️ Modifier le budget d'un jour</div>
-      <form method="POST" action="/budget/modifier_jour" class="flex gap-1" style="flex-wrap:wrap;">
-        <input type="hidden" name="week_start" value="{{ week_start }}">
-        <select name="date" style="flex:1; min-width:120px;">
-          {% for d in daily_list %}
-          <option value="{{ d.date }}">{{ jours[loop.index0] }} {{ d.date[8:] }}/{{ d.date[5:7] }} ({{ "%.0f"|format(d.planned) }} €)</option>
-          {% endfor %}
-        </select>
-        <input type="number" name="planned" step="0.01" min="0" placeholder="Nouveau budget" style="flex:1; min-width:120px;">
-        <button class="btn btn-primary btn-sm">Modifier</button>
-      </form>
+    {% set jours_full = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'] %}
+    {% set jours = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'] %}
+    {% for d in daily_list %}
+    {% set est_passe = d.date < today %}
+    {% set est_auj   = d.date == today %}
+    {% set est_futur = d.date > today %}
+    {% set pct = (d.spent / d.real * 100) if d.real > 0 else 0 %}
+    {% set pct_clamped = [pct, 100] | min %}
+
+    <div class="card mb-2" style="
+      border-left: 3px solid {{ '#ef4444' if pct > 100 else '#f59e0b' if pct > 80 else '#10b981' if est_passe or est_auj else '#475569' }};
+      opacity: {{ '1' if est_auj or est_futur else '0.85' }};">
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+        <div>
+          <div style="font-weight:600; font-size:0.95rem; display:flex; align-items:center; gap:0.5rem;">
+            {{ jours_full[loop.index0] }}
+            {% if est_auj %}<span class="badge badge-blue" style="font-size:0.65rem;">Aujourd'hui</span>
+            {% else %}<span style="font-size:0.7rem; color:var(--muted);">{{ d.date[8:] }}/{{ d.date[5:7] }}</span>{% endif %}
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:0.72rem; color:var(--muted);">Reste</div>
+          <div style="font-size:1.1rem; font-weight:700;" class="{{ 'green' if d.reste >= 0 else 'red' }}">{{ d.reste|cfa }}</div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.5rem; margin-bottom:0.75rem; font-size:0.78rem;">
+        <div style="background:var(--surface2); border-radius:6px; padding:0.4rem 0.6rem;">
+          <div style="color:var(--muted); margin-bottom:2px;">Planifié</div>
+          <div style="font-weight:600;">{{ d.planned|cfa }}</div>
+        </div>
+        <div style="background:var(--surface2); border-radius:6px; padding:0.4rem 0.6rem;">
+          <div style="color:var(--muted); margin-bottom:2px;">Report</div>
+          <div style="font-weight:600;" class="{{ 'green' if d.carry > 0 else 'red' if d.carry < 0 else '' }}">
+            {% if d.carry > 0 %}+{{ d.carry|cfa }}{% elif d.carry < 0 %}-{{ (d.carry * -1)|cfa }}{% else %}—{% endif %}
+          </div>
+        </div>
+        <div style="background:var(--surface2); border-radius:6px; padding:0.4rem 0.6rem;">
+          <div style="color:var(--muted); margin-bottom:2px;">Disponible</div>
+          <div style="font-weight:600; color:var(--blue);">{{ d.real|cfa }}</div>
+        </div>
+      </div>
+
+      {% if est_passe or est_auj %}
+      <div style="margin-bottom:0.4rem;">
+        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--muted); margin-bottom:4px;">
+          <span>Dépensé : <strong style="color:{{ '#ef4444' if d.spent > 0 else 'var(--muted)' }};">{{ d.spent|cfa }}</strong></span>
+          <span>{{ "%.0f"|format(pct) }}%</span>
+        </div>
+        <div class="progress">
+          <div class="progress-bar" style="width:{{ pct_clamped }}%; background:{{ '#ef4444' if pct > 100 else '#f59e0b' if pct > 80 else '#10b981' }};"></div>
+        </div>
+        {% if pct > 100 %}
+        <div style="font-size:0.72rem; color:#ef4444; margin-top:4px;">⚠️ Dépassement de {{ (d.spent - d.real)|cfa }}</div>
+        {% endif %}
+      </div>
+      {% else %}
+      <div style="font-size:0.78rem; color:var(--muted); font-style:italic; margin-bottom:0.4rem;">
+        Jour à venir — {{ d.real|cfa }} disponibles
+      </div>
+      {% endif %}
+
+      <!-- Note du jour -->
+      {% if d.note %}
+      <div style="font-size:0.78rem; color:var(--muted); background:var(--surface2); border-radius:6px; padding:0.4rem 0.6rem; margin-bottom:0.4rem;">
+        📝 {{ d.note }}
+      </div>
+      {% endif %}
+
+      {% if not weekly.closed %}
+      <details style="margin-top:0.25rem;">
+        <summary style="font-size:0.75rem; color:var(--muted); cursor:pointer; list-style:none;">📝 {{ 'Modifier la note' if d.note else 'Ajouter une note' }}</summary>
+        <form method="POST" action="/budget/noter_jour" class="flex gap-1 mt-1" style="flex-wrap:wrap;">
+          <input type="hidden" name="week_start" value="{{ week_start }}">
+          <input type="hidden" name="date" value="{{ d.date }}">
+          <input type="text" name="note" value="{{ d.note }}" placeholder="Ex: Semaine chargée, sortie prévue…" style="flex:1; font-size:0.8rem;">
+          <button class="btn btn-outline btn-sm">💾</button>
+        </form>
+      </details>
+      {% endif %}
+
     </div>
+    {% endfor %}
 
     {% else %}
     <div class="card" style="text-align:center; padding:3rem; color:var(--muted);">
-      Définis un budget pour voir le planning journalier.
+      {% if is_current_week %}Définis un budget pour voir le planning journalier.
+      {% else %}Aucun budget enregistré pour cette semaine.{% endif %}
     </div>
     {% endif %}
   </div>

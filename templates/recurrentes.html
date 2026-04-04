@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-3">
+  <h1 style="font-size:1.5rem; font-weight:700;">🔄 Dépenses récurrentes</h1>
+  <p class="text-muted">Automatise tes dépenses régulières — elles s'enregistrent toutes seules.</p>
+</div>
+
+<div class="grid-2">
+
+  <!-- Formulaire ajout -->
+  <div>
+    <div class="card">
+      <div class="section-title">➕ Nouvelle dépense récurrente</div>
+      <form method="POST">
+        <input type="hidden" name="action" value="add">
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" name="description" placeholder="Ex: Loyer, Abonnement Netflix…" required autofocus>
+        </div>
+        <div class="form-group">
+          <label>Montant (FCFA)</label>
+          <input type="number" name="amount" step="1" min="1" placeholder="Ex: 5 000" required>
+        </div>
+        <div class="form-group">
+          <label>Catégorie</label>
+          <select name="category_id">
+            <option value="">— Aucune —</option>
+            {% for c in categories %}
+            <option value="{{ c.id }}">{{ c.icon }} {{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Source</label>
+          <select name="source">
+            <option value="auto">🔄 Automatique (budget → réserve)</option>
+            <option value="budget">📅 Budget semaine</option>
+            <option value="reserve">🏦 Réserve</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Fréquence</label>
+          <select name="frequency">
+            <option value="daily">Quotidienne</option>
+            <option value="weekly">Hebdomadaire</option>
+            <option value="monthly" selected>Mensuelle</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Prochaine date d'exécution</label>
+          <input type="date" name="next_date" value="{{ today }}" required>
+        </div>
+        <button class="btn btn-primary w-full">✅ Enregistrer</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Liste -->
+  <div>
+    <div class="section-title">Dépenses enregistrées</div>
+    {% if recs %}
+    {% for r in recs %}
+    <div class="card mb-2" style="padding:1rem; border-left:3px solid {{ '#10b981' if r.active else '#475569' }}; opacity:{{ '1' if r.active else '0.6' }};">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+          <div style="font-weight:600; font-size:0.9rem;">
+            {% if r.cat_icon %}{{ r.cat_icon }}{% endif %} {{ r.description }}
+            {% if not r.active %}<span class="badge badge-gray" style="font-size:0.65rem; margin-left:4px;">En pause</span>{% endif %}
+          </div>
+          <div class="text-muted" style="font-size:0.78rem; margin-top:2px;">
+            {{ r.amount|cfa }} —
+            {% if r.frequency == 'daily' %}Quotidienne
+            {% elif r.frequency == 'weekly' %}Hebdomadaire
+            {% else %}Mensuelle{% endif %}
+            — Source : {{ r.source }}
+          </div>
+          <div style="font-size:0.78rem; color:{{ '#f59e0b' if r.next_date <= today else 'var(--muted)' }};">
+            Prochaine : <strong>{{ r.next_date }}</strong>
+            {% if r.next_date <= today and r.active %}⚡ En attente{% endif %}
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:0.4rem; align-items:flex-end;">
+          <form method="POST">
+            <input type="hidden" name="action" value="toggle">
+            <input type="hidden" name="rec_id" value="{{ r.id }}">
+            <button class="btn btn-outline btn-sm" style="font-size:0.72rem;">
+              {{ '⏸️ Pause' if r.active else '▶️ Activer' }}
+            </button>
+          </form>
+          <form method="POST" onsubmit="return confirm('Supprimer cette dépense récurrente ?')">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="rec_id" value="{{ r.id }}">
+            <button class="btn btn-sm" style="padding:0.25rem 0.5rem; font-size:0.72rem; background:#7f1d1d; color:#fca5a5; border:none;">🗑️</button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="card" style="text-align:center; padding:3rem; color:var(--muted);">
+      Aucune dépense récurrente. Configure tes paiements réguliers pour les automatiser.
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

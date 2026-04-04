@@ -119,16 +119,20 @@
 </head>
 <body>
 <nav>
-  <div class="nav-inner">
-    <span class="nav-brand">💰 Finance Perso</span>
-    <a href="/" class="nav-link {% if request.endpoint=='index' %}active{% endif %}">🏠 Tableau de bord</a>
+  <div class="nav-inner" style="flex-wrap:wrap; height:auto; padding:0.5rem 0; gap:0.1rem;">
+    <span class="nav-brand" style="margin-right:0.5rem;">💰 Finance</span>
+    <a href="/" class="nav-link {% if request.endpoint=='index' %}active{% endif %}">🏠 Dashboard</a>
     <a href="/revenu" class="nav-link {% if request.endpoint=='revenu' %}active{% endif %}">📥 Revenus</a>
     <a href="/depense" class="nav-link {% if request.endpoint=='depense' %}active{% endif %}">📤 Dépenses</a>
     <a href="/budget" class="nav-link {% if request.endpoint=='budget' %}active{% endif %}">📅 Budget</a>
     <a href="/reserve" class="nav-link {% if request.endpoint=='reserve' %}active{% endif %}">🏦 Réserve</a>
     <a href="/prets" class="nav-link {% if request.endpoint=='prets' %}active{% endif %}">🤝 Prêts</a>
-    <a href="/stats" class="nav-link {% if request.endpoint=='stats' %}active{% endif %}">📊 Statistiques</a>
+    <a href="/stats" class="nav-link {% if request.endpoint=='stats' %}active{% endif %}">📊 Stats</a>
     <a href="/historique" class="nav-link {% if request.endpoint=='historique' %}active{% endif %}">📋 Historique</a>
+    <a href="/bilan" class="nav-link {% if request.endpoint=='bilan' %}active{% endif %}">📈 Bilan</a>
+    <a href="/objectifs" class="nav-link {% if request.endpoint=='objectifs' %}active{% endif %}">🎯 Objectifs</a>
+    <a href="/recurrentes" class="nav-link {% if request.endpoint=='recurrentes' %}active{% endif %}">🔄 Récurrentes</a>
+    <a href="/categories" class="nav-link {% if request.endpoint=='categories' %}active{% endif %}">🗂️ Catégories</a>
   </div>
 </nav>
 <div class="container">

@@ -103,6 +103,33 @@ def init_db():
         note TEXT,
         FOREIGN KEY (loan_id) REFERENCES loans(id)
     );
+
+    CREATE TABLE IF NOT EXISTS savings_goals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        target_amount REAL NOT NULL,
+        deadline TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS category_budgets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category_id INTEGER NOT NULL UNIQUE,
+        weekly_limit REAL NOT NULL,
+        FOREIGN KEY (category_id) REFERENCES categories(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS recurring_expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        description TEXT NOT NULL,
+        amount REAL NOT NULL,
+        category_id INTEGER,
+        source TEXT DEFAULT 'auto',
+        frequency TEXT NOT NULL,
+        next_date TEXT NOT NULL,
+        active INTEGER DEFAULT 1,
+        FOREIGN KEY (category_id) REFERENCES categories(id)
+    );
     """)
 
     c.execute("SELECT COUNT(*) FROM accounts")
@@ -119,11 +146,12 @@ def init_db():
         INSERT INTO categories (name, color, icon) VALUES ('Imprévu', '#6b7280', '⚡');
         INSERT INTO categories (name, color, icon) VALUES ('Autre', '#6366f1', '📌');
         """)
-    # Migration automatique : ajouter 'spent' si absent (anciennes bases)
-    cols = [r[1]
-            for r in c.execute("PRAGMA table_info(daily_budgets)").fetchall()]
+    # Migrations automatiques
+    cols = [r[1] for r in c.execute("PRAGMA table_info(daily_budgets)").fetchall()]
     if 'spent' not in cols:
         c.execute("ALTER TABLE daily_budgets ADD COLUMN spent REAL DEFAULT 0")
+    if 'note' not in cols:
+        c.execute("ALTER TABLE daily_budgets ADD COLUMN note TEXT")
 
     conn.commit()
     conn.close()
@@ -221,19 +249,8 @@ def close_week_if_needed():
         week_start = datetime.strptime(w['week_start'], '%Y-%m-%d').date()
         week_end = week_start + timedelta(days=6)
 
-        # Calcul dépenses de la semaine depuis le ledger
-        spent = conn.execute(
-            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type IN ('expense','expense_reserve') AND date BETWEEN ? AND ?",
-            (str(week_start), str(week_end))
-        ).fetchone()[0]
-
-        # Argent alloué au budget cette semaine
-        allocated = conn.execute(
-            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE destination='budget' AND date BETWEEN ? AND ?",
-            (str(week_start), str(week_end))
-        ).fetchone()[0]
-
-        reste = round(allocated - spent, 2)
+        # Solde réel du compte budget (identique à la clôture manuelle)
+        reste = round(get_balance('budget'), 2)
         if reste > 0:
             create_ledger_entry(
                 conn, 'budget', 'reserve', reste, 'week_close',
@@ -266,7 +283,11 @@ def compute_daily_real_budget(weekly_budget_id, date_str):
 def propagate_carry(weekly_budget_id):
     """
     Calcule et propage le report (carry) pour chaque jour de la semaine.
-    Le reste d'un jour = budget_réel - dépenses du jour → ajouté au lendemain.
+    Le reste d'un jour = budget_réel - dépenses du jour.
+
+    Nouvelle logique :
+    - reste positif  → ajouté au lendemain
+    - reste négatif → retiré du lendemain
     """
     conn = get_db()
     days = conn.execute(
@@ -276,19 +297,24 @@ def propagate_carry(weekly_budget_id):
 
     carry = 0.0
     for day in days:
-        # Mettre à jour le carry du jour
-        conn.execute("UPDATE daily_budgets SET carry=? WHERE id=?",
-                     (round(carry, 2), day['id']))
-        real_budget = day['planned'] + carry
+        current_carry = round(carry, 2)
 
-        # Dépenses du jour depuis le ledger
+        # Mettre à jour le carry du jour (positif ou négatif)
+        conn.execute(
+            "UPDATE daily_budgets SET carry=? WHERE id=?",
+            (current_carry, day['id'])
+        )
+
+        real_budget = round(day['planned'] + current_carry, 2)
+
+        # Dépenses du jour depuis le ledger — uniquement les dépenses budget (pas reserve)
         spent = conn.execute(
-            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type IN ('expense','expense_reserve') AND date=?",
+            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type='expense' AND date=?",
             (day['date'],)
         ).fetchone()[0]
 
-        reste = real_budget - spent
-        carry = max(reste, 0)  # on ne propage pas un déficit
+        reste = round(real_budget - spent, 2)
+        carry = reste
 
     conn.commit()
     conn.close()
@@ -299,6 +325,7 @@ def propagate_carry(weekly_budget_id):
 @app.route("/")
 def index():
     close_week_if_needed()
+    apply_recurring_expenses()
 
     today = datetime.now().date()
     week_start = today - timedelta(days=today.weekday())
@@ -313,9 +340,9 @@ def index():
         (str(week_start),)
     ).fetchone()
 
-    # Dépenses de la semaine
+    # Dépenses de la semaine — uniquement budget (cohérent avec la page budget)
     weekly_spent = conn.execute(
-        "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type IN ('expense','expense_reserve') AND date BETWEEN ? AND ?",
+        "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type='expense' AND date BETWEEN ? AND ?",
         (str(week_start), str(week_start + timedelta(days=6)))
     ).fetchone()[0]
 
@@ -333,7 +360,7 @@ def index():
             today_real_budget = round(
                 today_day['planned'] + (today_day['carry'] or 0), 2)
         today_spent = conn.execute(
-            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type IN ('expense','expense_reserve') AND date=?",
+            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type='expense' AND date=?",
             (str(today),)
         ).fetchone()[0]
 
@@ -489,12 +516,32 @@ def transfert():
 @app.route("/budget", methods=["GET", "POST"])
 def budget():
     today = datetime.now().date()
-    week_start = today - timedelta(days=today.weekday())
+    # Navigation semaines : ?week=YYYY-MM-DD pour voir une semaine passée
+    week_param = request.args.get('week')
+    if week_param:
+        try:
+            nav_date = datetime.strptime(week_param, '%Y-%m-%d').date()
+            week_start = nav_date - timedelta(days=nav_date.weekday())
+        except ValueError:
+            week_start = today - timedelta(days=today.weekday())
+    else:
+        week_start = today - timedelta(days=today.weekday())
+
+    is_current_week = (week_start == today - timedelta(days=today.weekday()))
+    prev_week = week_start - timedelta(days=7)
+    next_week = week_start + timedelta(days=7)
 
     if request.method == "POST":
         montant = float(request.form['montant'])
         daily = round(montant / 7, 2)
         conn = get_db()
+
+        # F3 : Vérification budget vs solde réel du compte budget
+        budget_bal = get_balance('budget')
+        if montant > budget_bal + 0.01:
+            conn.close()
+            flash(f"⚠️ Budget ({cfa(montant)}) supérieur au solde disponible ({cfa(budget_bal)}). Alimente d'abord le budget via un revenu ou un transfert.", "error")
+            return redirect(url_for('budget'))
 
         # Supprimer l'ancien budget de la semaine si existant
         old = conn.execute(
@@ -515,28 +562,27 @@ def budget():
 
         conn.commit()
         conn.close()
-        flash(
-            f"✅ Budget de {cfa(montant)} défini — {cfa(daily)}/jour pendant 7 jours.", "success")
+        flash(f"✅ Budget de {cfa(montant)} défini — {cfa(daily)}/jour pendant 7 jours.", "success")
         return redirect(url_for('budget'))
 
     conn = get_db()
+    # Chercher le budget de la semaine naviguée (ouvert ou fermé)
     weekly = conn.execute(
-        "SELECT * FROM weekly_budgets WHERE week_start=? AND closed=0", (str(
-            week_start),)
+        "SELECT * FROM weekly_budgets WHERE week_start=?", (str(week_start),)
     ).fetchone()
 
     daily_list = []
     if weekly:
-        propagate_carry(weekly['id'])
+        if not weekly['closed']:
+            propagate_carry(weekly['id'])
         raw = conn.execute(
             "SELECT * FROM daily_budgets WHERE weekly_budget_id=? ORDER BY date",
             (weekly['id'],)
         ).fetchall()
 
-        # Enrichir avec les dépenses réelles et le budget réel
         for d in raw:
             spent = conn.execute(
-                "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type IN ('expense','expense_reserve') AND date=?",
+                "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type='expense' AND date=?",
                 (d['date'],)
             ).fetchone()[0]
             real = round(d['planned'] + (d['carry'] or 0), 2)
@@ -546,12 +592,21 @@ def budget():
                 'carry': d['carry'] or 0,
                 'real': real,
                 'spent': round(spent, 2),
-                'reste': round(real - spent, 2)
+                'reste': round(real - spent, 2),
+                'note': d['note'] or ''
             })
+
+    # Liste des semaines passées pour la navigation
+    past_weeks = conn.execute(
+        "SELECT week_start, total_amount, closed FROM weekly_budgets ORDER BY week_start DESC LIMIT 10"
+    ).fetchall()
 
     conn.close()
     return render_template("budget.html", weekly=weekly, daily_list=daily_list,
-                           week_start=week_start, today=str(today))
+                           week_start=week_start, today=str(today),
+                           is_current_week=is_current_week,
+                           prev_week=str(prev_week), next_week=str(next_week),
+                           past_weeks=past_weeks)
 
 # ── MODIFIER BUDGET JOURNALIER ────────────────────────────────────────────────
 
@@ -596,6 +651,23 @@ def modifier_jour():
             flash("✅ Budget journalier mis à jour.", "success")
     conn.close()
     return redirect(url_for('budget'))
+
+# ── NOTE SUR UN JOUR ─────────────────────────────────────────────────────────
+
+@app.route("/budget/noter_jour", methods=["POST"])
+def noter_jour():
+    date_str = request.form.get('date', '')
+    note = request.form.get('note', '').strip()
+    week_start = request.form.get('week_start', '')
+    conn = get_db()
+    wb = conn.execute("SELECT id FROM weekly_budgets WHERE week_start=?", (week_start,)).fetchone()
+    if wb:
+        conn.execute("UPDATE daily_budgets SET note=? WHERE weekly_budget_id=? AND date=?",
+                     (note or None, wb['id'], date_str))
+        conn.commit()
+    conn.close()
+    return redirect(url_for('budget', week=week_start))
+
 
 # ── CLÔTURE MANUELLE DE SEMAINE ───────────────────────────────────────────────
 
@@ -747,6 +819,11 @@ def historique():
         params.append(filter_cat)
     query += " ORDER BY l.date DESC, l.id DESC"
 
+    filter_search = request.args.get('search', '').strip()
+    if filter_search:
+        query += " AND l.description LIKE ?"
+        params.append(f"%{filter_search}%")
+
     transactions = conn.execute(query, params).fetchall()
     total_in = sum(t['amount'] for t in transactions if t['type'] in ('income', 'allocation',
                    'repayment', 'week_close') and t['destination'] in ('reserve', 'budget', 'income'))
@@ -756,8 +833,84 @@ def historique():
     return render_template("historique.html",
                            transactions=transactions, categories=categories,
                            filter_type=filter_type, filter_cat=filter_cat, filter_month=filter_month,
+                           filter_search=filter_search,
                            total_in=round(total_in, 2), total_out=round(total_out, 2)
                            )
+
+
+# ── SUPPRIMER UNE TRANSACTION ─────────────────────────────────────────────────
+
+@app.route("/transaction/supprimer/<int:tid>", methods=["POST"])
+def supprimer_transaction(tid):
+    conn = get_db()
+    t = conn.execute("SELECT * FROM ledger WHERE id=?", (tid,)).fetchone()
+    if t:
+        # Recalculer le spent du daily_budget si c'était une dépense budget
+        if t['type'] == 'expense':
+            conn.execute(
+                "UPDATE daily_budgets SET spent = MAX(0, spent - ?) WHERE date=?",
+                (t['amount'], t['date'])
+            )
+        conn.execute("DELETE FROM ledger WHERE id=?", (tid,))
+        conn.commit()
+        flash(f"✅ Transaction supprimée ({cfa(t['amount'])}).", "success")
+    conn.close()
+    return redirect(request.referrer or url_for('historique'))
+
+
+# ── MODIFIER UNE TRANSACTION ──────────────────────────────────────────────────
+
+@app.route("/transaction/modifier/<int:tid>", methods=["GET", "POST"])
+def modifier_transaction(tid):
+    conn = get_db()
+    t = conn.execute("SELECT * FROM ledger WHERE id=?", (tid,)).fetchone()
+    if not t:
+        flash("Transaction introuvable.", "error")
+        conn.close()
+        return redirect(url_for('historique'))
+
+    categories = conn.execute("SELECT * FROM categories").fetchall()
+
+    if request.method == "POST":
+        new_desc = request.form.get('description', t['description'])
+        new_cat  = request.form.get('category_id') or None
+        new_date = request.form.get('date', t['date'])
+        try:
+            new_amount = round(float(request.form['amount']), 2)
+        except (ValueError, KeyError):
+            new_amount = t['amount']
+
+        # Recorriger le spent si dépense budget
+        if t['type'] == 'expense':
+            diff = new_amount - t['amount']
+            conn.execute(
+                "UPDATE daily_budgets SET spent = MAX(0, spent + ?) WHERE date=?",
+                (diff, t['date'])
+            )
+            # Si la date change, corriger les deux jours
+            if new_date != t['date']:
+                conn.execute(
+                    "UPDATE daily_budgets SET spent = MAX(0, spent - ?) WHERE date=?",
+                    (t['amount'], t['date'])
+                )
+                conn.execute(
+                    "UPDATE daily_budgets SET spent = COALESCE(spent,0) + ? WHERE date=?",
+                    (new_amount, new_date)
+                )
+
+        conn.execute(
+            "UPDATE ledger SET description=?, category_id=?, date=?, amount=? WHERE id=?",
+            (new_desc, new_cat, new_date, new_amount, tid)
+        )
+        conn.commit()
+        conn.close()
+        flash("✅ Transaction modifiée.", "success")
+        return redirect(url_for('historique'))
+
+    conn.close()
+    return render_template("modifier_transaction.html", t=t, categories=categories,
+                           today=datetime.now().strftime('%Y-%m-%d'))
+
 
 # ── STATISTIQUES ──────────────────────────────────────────────────────────────
 
@@ -791,12 +944,6 @@ def stats():
     # ── Évolution des dépenses sur les 6 derniers mois ──
     monthly_trend = []
     for i in range(5, -1, -1):
-        d = today.replace(day=1) - timedelta(days=1)
-        for _ in range(i):
-            d = d.replace(day=1) - timedelta(days=1)
-        m_str = (today.replace(day=1) - timedelta(days=i*30)).strftime('%Y-%m')
-        # recalcul propre
-        from datetime import date as date_
         year = today.year
         month_num = today.month - i
         while month_num <= 0:
@@ -872,7 +1019,6 @@ def stats():
 
 @app.route("/api/alertes")
 def api_alertes():
-    import json
     today = datetime.now().date()
     week_start = today - timedelta(days=today.weekday())
     alertes = []
@@ -892,7 +1038,7 @@ def api_alertes():
             real_budget = round(
                 today_day['planned'] + (today_day['carry'] or 0), 2)
             spent = conn.execute(
-                "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type IN ('expense','expense_reserve') AND date=?",
+                "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type='expense' AND date=?",
                 (str(today),)
             ).fetchone()[0]
             pct = (spent / real_budget * 100) if real_budget > 0 else 0
@@ -908,9 +1054,9 @@ def api_alertes():
                 alertes.append(
                     {'level': 'info', 'msg': f"💡 Tu as utilisé {pct:.0f}% de ton budget journalier. Reste : {cfa(reste)}."})
 
-        # Alerte budget semaine
+        # Alerte budget semaine — uniquement budget (cohérent avec la page budget)
         week_spent = conn.execute(
-            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type IN ('expense','expense_reserve') AND date BETWEEN ? AND ?",
+            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type='expense' AND date BETWEEN ? AND ?",
             (str(week_start), str(week_start + timedelta(days=6)))
         ).fetchone()[0]
         week_pct = (week_spent / weekly['total_amount']
@@ -918,6 +1064,24 @@ def api_alertes():
         if week_pct >= 90:
             alertes.append(
                 {'level': 'warning', 'msg': f"⚠️ Budget semaine presque épuisé — {100-week_pct:.0f}% restant."})
+
+    # Alertes plafonds par catégorie (cette semaine)
+    cat_limits = conn.execute("""
+        SELECT cb.weekly_limit, c.name, c.icon,
+               COALESCE(SUM(l.amount),0) as spent
+        FROM category_budgets cb
+        JOIN categories c ON c.id = cb.category_id
+        LEFT JOIN ledger l ON l.category_id = cb.category_id
+            AND l.type IN ('expense','expense_reserve')
+            AND l.date BETWEEN ? AND ?
+        GROUP BY cb.category_id
+    """, (str(week_start), str(week_start + timedelta(days=6)))).fetchall()
+    for cl in cat_limits:
+        pct = cl['spent'] / cl['weekly_limit'] * 100 if cl['weekly_limit'] > 0 else 0
+        if pct >= 100:
+            alertes.append({'level': 'danger', 'msg': f"⛔ Plafond {cl['icon']} {cl['name']} dépassé ({cfa(cl['spent'])} / {cfa(cl['weekly_limit'])})."})
+        elif pct >= 80:
+            alertes.append({'level': 'warning', 'msg': f"⚠️ {cl['icon']} {cl['name']} : {pct:.0f}% du plafond hebdo atteint."})
 
     # Alerte réserve faible
     reserve_bal = get_balance('reserve')
@@ -1012,7 +1176,286 @@ def reserve():
                            historique=historique, today=datetime.now().strftime('%Y-%m-%d'))
 
 
+# ── CATÉGORIES PERSONNALISABLES ───────────────────────────────────────────────
+
+@app.route("/categories", methods=["GET", "POST"])
+def categories():
+    conn = get_db()
+    if request.method == "POST":
+        action = request.form.get('action')
+        if action == 'add':
+            name  = request.form.get('name', '').strip()
+            color = request.form.get('color', '#6366f1')
+            icon  = request.form.get('icon', '📌').strip() or '📌'
+            if name:
+                conn.execute("INSERT INTO categories (name, color, icon) VALUES (?,?,?)", (name, color, icon))
+                conn.commit()
+                flash(f"✅ Catégorie « {name} » créée.", "success")
+        elif action == 'edit':
+            cid   = int(request.form['cat_id'])
+            name  = request.form.get('name', '').strip()
+            color = request.form.get('color', '#6366f1')
+            icon  = request.form.get('icon', '📌').strip() or '📌'
+            if name:
+                conn.execute("UPDATE categories SET name=?, color=?, icon=? WHERE id=?", (name, color, icon, cid))
+                conn.commit()
+                flash("✅ Catégorie mise à jour.", "success")
+        elif action == 'delete':
+            cid = int(request.form['cat_id'])
+            used = conn.execute("SELECT COUNT(*) FROM ledger WHERE category_id=?", (cid,)).fetchone()[0]
+            if used > 0:
+                flash("⚠️ Impossible de supprimer : cette catégorie est utilisée dans des transactions.", "error")
+            else:
+                conn.execute("DELETE FROM category_budgets WHERE category_id=?", (cid,))
+                conn.execute("DELETE FROM categories WHERE id=?", (cid,))
+                conn.commit()
+                flash("✅ Catégorie supprimée.", "success")
+        conn.close()
+        return redirect(url_for('categories'))
+
+    cats = conn.execute("""
+        SELECT c.*, cb.weekly_limit,
+               COUNT(l.id) as usage_count
+        FROM categories c
+        LEFT JOIN category_budgets cb ON cb.category_id = c.id
+        LEFT JOIN ledger l ON l.category_id = c.id
+        GROUP BY c.id ORDER BY c.name
+    """).fetchall()
+    conn.close()
+    return render_template("categories.html", cats=cats)
+
+
+# ── BUDGET PAR CATÉGORIE ──────────────────────────────────────────────────────
+
+@app.route("/categories/budget", methods=["POST"])
+def set_category_budget():
+    cat_id = int(request.form['cat_id'])
+    try:
+        limit = float(request.form['weekly_limit'])
+    except (ValueError, KeyError):
+        flash("⚠️ Montant invalide.", "error")
+        return redirect(url_for('categories'))
+    conn = get_db()
+    if limit <= 0:
+        conn.execute("DELETE FROM category_budgets WHERE category_id=?", (cat_id,))
+        flash("✅ Plafond supprimé.", "success")
+    else:
+        conn.execute("""
+            INSERT INTO category_budgets (category_id, weekly_limit)
+            VALUES (?,?) ON CONFLICT(category_id) DO UPDATE SET weekly_limit=excluded.weekly_limit
+        """, (cat_id, limit))
+        flash("✅ Plafond hebdomadaire enregistré.", "success")
+    conn.commit()
+    conn.close()
+    return redirect(url_for('categories'))
+
+
+# ── OBJECTIFS D'ÉPARGNE ───────────────────────────────────────────────────────
+
+@app.route("/objectifs", methods=["GET", "POST"])
+def objectifs():
+    conn = get_db()
+    if request.method == "POST":
+        action = request.form.get('action')
+        if action == 'add':
+            name   = request.form.get('name', '').strip()
+            target = float(request.form.get('target_amount', 0))
+            deadline = request.form.get('deadline') or None
+            if name and target > 0:
+                conn.execute("INSERT INTO savings_goals (name, target_amount, deadline) VALUES (?,?,?)",
+                             (name, target, deadline))
+                conn.commit()
+                flash(f"✅ Objectif « {name} » créé.", "success")
+        elif action == 'delete':
+            gid = int(request.form['goal_id'])
+            conn.execute("DELETE FROM savings_goals WHERE id=?", (gid,))
+            conn.commit()
+            flash("✅ Objectif supprimé.", "success")
+        conn.close()
+        return redirect(url_for('objectifs'))
+
+    goals = conn.execute("SELECT * FROM savings_goals ORDER BY created_at DESC").fetchall()
+    reserve_bal = get_balance('reserve')
+    today = datetime.now().date()
+
+    goals_data = []
+    for g in goals:
+        pct = min(reserve_bal / g['target_amount'] * 100, 100) if g['target_amount'] > 0 else 0
+        reste = max(g['target_amount'] - reserve_bal, 0)
+        # Calcul du montant hebdo nécessaire pour atteindre l'objectif à temps
+        weekly_needed = None
+        if g['deadline']:
+            try:
+                deadline_date = datetime.strptime(g['deadline'], '%Y-%m-%d').date()
+                weeks_left = max((deadline_date - today).days / 7, 1)
+                weekly_needed = round(reste / weeks_left, 0) if reste > 0 else 0
+            except ValueError:
+                pass
+        goals_data.append({**dict(g), 'pct': round(pct, 1), 'reste': reste, 'weekly_needed': weekly_needed})
+
+    conn.close()
+    return render_template("objectifs.html", goals=goals_data, reserve_bal=reserve_bal,
+                           today=datetime.now().strftime('%Y-%m-%d'))
+
+
+# ── DÉPENSES RÉCURRENTES ──────────────────────────────────────────────────────
+
+def apply_recurring_expenses():
+    """Injecte les dépenses récurrentes dont la date est passée."""
+    today = datetime.now().date()
+    conn = get_db()
+    recs = conn.execute(
+        "SELECT * FROM recurring_expenses WHERE active=1 AND next_date<=?", (str(today),)
+    ).fetchall()
+    for r in recs:
+        ok, _ = add_expense_smart(conn, r['amount'], r['description'], r['category_id'],
+                                  r['next_date'], r['source'])
+        if ok:
+            # Calculer la prochaine date
+            freq = r['frequency']
+            base = datetime.strptime(r['next_date'], '%Y-%m-%d').date()
+            if freq == 'daily':
+                next_d = base + timedelta(days=1)
+            elif freq == 'weekly':
+                next_d = base + timedelta(days=7)
+            elif freq == 'monthly':
+                m = base.month + 1 if base.month < 12 else 1
+                y = base.year if base.month < 12 else base.year + 1
+                next_d = base.replace(year=y, month=m)
+            else:
+                next_d = base + timedelta(days=30)
+            conn.execute("UPDATE recurring_expenses SET next_date=? WHERE id=?",
+                         (str(next_d), r['id']))
+    conn.commit()
+    conn.close()
+
+
+@app.route("/recurrentes", methods=["GET", "POST"])
+def recurrentes():
+    conn = get_db()
+    categories = conn.execute("SELECT * FROM categories").fetchall()
+
+    if request.method == "POST":
+        action = request.form.get('action')
+        if action == 'add':
+            desc     = request.form.get('description', '').strip()
+            amount   = float(request.form.get('amount', 0))
+            cat_id   = request.form.get('category_id') or None
+            source   = request.form.get('source', 'auto')
+            freq     = request.form.get('frequency', 'monthly')
+            next_d   = request.form.get('next_date', datetime.now().strftime('%Y-%m-%d'))
+            if desc and amount > 0:
+                conn.execute("""
+                    INSERT INTO recurring_expenses (description, amount, category_id, source, frequency, next_date)
+                    VALUES (?,?,?,?,?,?)
+                """, (desc, amount, cat_id, source, freq, next_d))
+                conn.commit()
+                flash(f"✅ Dépense récurrente « {desc} » enregistrée.", "success")
+        elif action == 'toggle':
+            rid = int(request.form['rec_id'])
+            conn.execute("UPDATE recurring_expenses SET active = 1 - active WHERE id=?", (rid,))
+            conn.commit()
+            flash("✅ Statut mis à jour.", "success")
+        elif action == 'delete':
+            rid = int(request.form['rec_id'])
+            conn.execute("DELETE FROM recurring_expenses WHERE id=?", (rid,))
+            conn.commit()
+            flash("✅ Dépense récurrente supprimée.", "success")
+        conn.close()
+        return redirect(url_for('recurrentes'))
+
+    recs = conn.execute("""
+        SELECT r.*, c.name as cat_name, c.icon as cat_icon
+        FROM recurring_expenses r
+        LEFT JOIN categories c ON c.id = r.category_id
+        ORDER BY r.active DESC, r.next_date
+    """).fetchall()
+    conn.close()
+    return render_template("recurrentes.html", recs=recs, categories=categories,
+                           today=datetime.now().strftime('%Y-%m-%d'))
+
+
+# ── EXPORT CSV ────────────────────────────────────────────────────────────────
+
+@app.route("/export")
+def export_csv():
+    import csv, io
+    from flask import Response
+    month = request.args.get('month', datetime.now().strftime('%Y-%m'))
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT l.date, l.type, l.source, l.destination, l.amount, l.description,
+               c.name as category
+        FROM ledger l
+        LEFT JOIN categories c ON c.id = l.category_id
+        WHERE l.date LIKE ?
+        ORDER BY l.date DESC, l.id DESC
+    """, (f"{month}%",)).fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Date', 'Type', 'Source', 'Destination', 'Montant (FCFA)', 'Description', 'Catégorie'])
+    for r in rows:
+        writer.writerow([r['date'], r['type'], r['source'], r['destination'],
+                         r['amount'], r['description'] or '', r['category'] or ''])
+
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename=finances_{month}.csv'}
+    )
+
+
+# ── BILAN MENSUEL ─────────────────────────────────────────────────────────────
+
+@app.route("/bilan")
+@app.route("/bilan/<month>")
+def bilan(month=None):
+    today = datetime.now().date()
+    if not month:
+        month = today.strftime('%Y-%m')
+    conn = get_db()
+
+    income     = conn.execute("SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type='income' AND date LIKE ?", (f"{month}%",)).fetchone()[0]
+    expenses   = conn.execute("SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type IN ('expense','expense_reserve') AND date LIKE ?", (f"{month}%",)).fetchone()[0]
+    epargne    = conn.execute("SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type='allocation' AND destination='reserve' AND date LIKE ?", (f"{month}%",)).fetchone()[0]
+
+    by_cat = conn.execute("""
+        SELECT c.name, c.icon, c.color, COALESCE(SUM(l.amount),0) as total
+        FROM categories c
+        LEFT JOIN ledger l ON l.category_id=c.id AND l.type IN ('expense','expense_reserve') AND l.date LIKE ?
+        GROUP BY c.id HAVING total > 0 ORDER BY total DESC
+    """, (f"{month}%",)).fetchall()
+
+    # Mois précédent pour comparaison
+    y, m = int(month[:4]), int(month[5:7])
+    pm = m - 1 if m > 1 else 12
+    py = y if m > 1 else y - 1
+    prev_month = f"{py}-{pm:02d}"
+    prev_expenses = conn.execute("SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type IN ('expense','expense_reserve') AND date LIKE ?", (f"{prev_month}%",)).fetchone()[0]
+    prev_income   = conn.execute("SELECT COALESCE(SUM(amount),0) FROM ledger WHERE type='income' AND date LIKE ?", (f"{prev_month}%",)).fetchone()[0]
+
+    # Liste des mois disponibles
+    months_available = conn.execute("""
+        SELECT DISTINCT substr(date,1,7) as m FROM ledger ORDER BY m DESC LIMIT 24
+    """).fetchall()
+
+    taux_epargne = round(epargne / income * 100, 1) if income > 0 else 0
+    solde_net    = round(income - expenses, 2)
+
+    conn.close()
+    return render_template("bilan.html",
+                           month=month, income=round(income,2), expenses=round(expenses,2),
+                           epargne=round(epargne,2), taux_epargne=taux_epargne,
+                           solde_net=solde_net, by_cat=by_cat,
+                           prev_month=prev_month, prev_expenses=round(prev_expenses,2),
+                           prev_income=round(prev_income,2),
+                           months_available=[r['m'] for r in months_available])
+
+
 if __name__ == "__main__":
     init_db()
+    apply_recurring_expenses()
     print("\n🚀 Application démarrée → http://127.0.0.1:5000\n")
     app.run(debug=True, port=5000)

@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-3" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+  <div>
+    <h1 style="font-size:1.5rem; font-weight:700;">📈 Bilan mensuel</h1>
+    <p class="text-muted">{{ month }}</p>
+  </div>
+  <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+    <select onchange="window.location='/bilan/'+this.value" style="width:auto;">
+      {% for m in months_available %}
+      <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
+      {% endfor %}
+    </select>
+    <a href="/export?month={{ month }}" class="btn btn-outline btn-sm">⬇️ Export CSV</a>
+  </div>
+</div>
+
+<!-- KPIs principaux -->
+<div class="grid-4 mb-3">
+  <div class="stat-card" style="border-left:3px solid #10b981;">
+    <div class="stat-label">💰 Revenus</div>
+    <div class="stat-value green" style="font-size:1.4rem;">+{{ income|cfa }}</div>
+    {% set diff_inc = income - prev_income %}
+    <div class="stat-sub">
+      {% if prev_income > 0 %}
+        vs mois préc. :
+        <span class="{{ 'green' if diff_inc >= 0 else 'red' }}">
+          {{ '+' if diff_inc >= 0 else '' }}{{ diff_inc|cfa }}
+        </span>
+      {% else %}Mois précédent : aucun revenu{% endif %}
+    </div>
+  </div>
+  <div class="stat-card" style="border-left:3px solid #ef4444;">
+    <div class="stat-label">💸 Dépenses</div>
+    <div class="stat-value red" style="font-size:1.4rem;">-{{ expenses|cfa }}</div>
+    {% set diff_exp = expenses - prev_expenses %}
+    <div class="stat-sub">
+      {% if prev_expenses > 0 %}
+        vs mois préc. :
+        <span class="{{ 'red' if diff_exp > 0 else 'green' }}">
+          {{ '+' if diff_exp >= 0 else '' }}{{ diff_exp|cfa }}
+        </span>
+      {% else %}Mois précédent : aucune dépense{% endif %}
+    </div>
+  </div>
+  <div class="stat-card" style="border-left:3px solid #3b82f6;">
+    <div class="stat-label">📊 Solde net</div>
+    <div class="stat-value {{ 'green' if solde_net >= 0 else 'red' }}" style="font-size:1.4rem;">
+      {{ '+' if solde_net >= 0 else '' }}{{ solde_net|cfa }}
+    </div>
+    <div class="stat-sub">Revenus − Dépenses</div>
+  </div>
+  <div class="stat-card" style="border-left:3px solid #8b5cf6;">
+    <div class="stat-label">🏦 Taux d'épargne</div>
+    <div class="stat-value" style="font-size:1.4rem; color:var(--purple);">{{ taux_epargne }}%</div>
+    <div class="stat-sub">{{ epargne|cfa }} mis en réserve</div>
+  </div>
+</div>
+
+<!-- Répartition par catégorie -->
+{% if by_cat %}
+<div class="grid-2">
+  <div>
+    <div class="section-title">🗂️ Dépenses par catégorie</div>
+    <div class="card">
+      {% set max_cat = by_cat[0].total %}
+      {% for c in by_cat %}
+      <div style="margin-bottom:0.875rem;">
+        <div style="display:flex; justify-content:space-between; font-size:0.875rem; margin-bottom:4px;">
+          <span>{{ c.icon }} {{ c.name }}</span>
+          <span class="font-bold">
+            {{ c.total|cfa }}
+            <span class="text-muted" style="font-weight:400;">
+              ({{ "%.0f"|format(c.total / expenses * 100) if expenses > 0 else 0 }}%)
+            </span>
+          </span>
+        </div>
+        <div class="progress">
+          <div class="progress-bar" style="width:{{ (c.total / max_cat * 100) if max_cat > 0 else 0 }}%; background:{{ c.color }};"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">📊 Résumé visuel</div>
+    <div class="card" style="display:flex; flex-direction:column; gap:1rem;">
+      <!-- Barre revenus vs dépenses -->
+      {% if income > 0 %}
+      {% set exp_pct = [expenses / income * 100, 100] | min %}
+      <div>
+        <div style="font-size:0.82rem; color:var(--muted); margin-bottom:4px; display:flex; justify-content:space-between;">
+          <span>Taux de consommation</span>
+          <span class="{{ 'red' if exp_pct > 90 else 'amber' if exp_pct > 70 else 'green' }}">{{ "%.1f"|format(exp_pct) }}%</span>
+        </div>
+        <div class="progress" style="height:12px;">
+          <div class="progress-bar" style="width:{{ exp_pct }}%; background:{{ '#ef4444' if exp_pct > 90 else '#f59e0b' if exp_pct > 70 else '#10b981' }};"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--muted); margin-top:4px;">
+          <span>0</span>
+          <span>Revenus : {{ income|cfa }}</span>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Taux d'épargne visuel -->
+      <div>
+        <div style="font-size:0.82rem; color:var(--muted); margin-bottom:4px; display:flex; justify-content:space-between;">
+          <span>Taux d'épargne</span>
+          <span class="{{ 'green' if taux_epargne >= 20 else 'amber' if taux_epargne >= 10 else 'red' }}">{{ taux_epargne }}%</span>
+        </div>
+        <div class="progress" style="height:12px;">
+          <div class="progress-bar" style="width:{{ [taux_epargne, 100]|min }}%; background:{{ '#10b981' if taux_epargne >= 20 else '#f59e0b' if taux_epargne >= 10 else '#ef4444' }};"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--muted); margin-top:4px;">
+          <span>Objectif conseillé : 20%</span>
+          <span>{{ epargne|cfa }} épargnés</span>
+        </div>
+      </div>
+
+      <!-- Top catégorie -->
+      {% if by_cat %}
+      <div style="background:var(--surface2); border-radius:8px; padding:0.75rem;">
+        <div style="font-size:0.78rem; color:var(--muted); margin-bottom:4px;">Catégorie la plus dépensée</div>
+        <div style="font-size:1.1rem; font-weight:700;">{{ by_cat[0].icon }} {{ by_cat[0].name }}</div>
+        <div style="font-size:0.875rem; color:var(--red);">{{ by_cat[0].total|cfa }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card" style="text-align:center; padding:3rem; color:var(--muted);">
+  Aucune dépense enregistrée pour {{ month }}.
+</div>
+{% endif %}
+{% endblock %}
