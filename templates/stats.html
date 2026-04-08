@@ -1,305 +1,304 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="mb-3">
-  <h1 style="font-size:1.5rem; font-weight:700; margin-bottom:0.25rem;">📊 Statistiques</h1>
-  <p class="text-muted">Analyse de tes finances</p>
+
+<div class="mb-7">
+  <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">📊 Statistiques</h1>
+  <p class="text-sm text-gray-400 dark:text-slate-500 mt-0.5">Analyse de vos finances</p>
 </div>
 
-<!-- ONGLETS -->
-<div style="display:flex; gap:0.5rem; margin-bottom:1.5rem; border-bottom:1px solid var(--border); padding-bottom:0;">
-  <button onclick="showTab('semaine')" id="tab-semaine" class="tab-btn active-tab">Cette semaine</button>
-  <button onclick="showTab('mois')" id="tab-mois" class="tab-btn">Ce mois</button>
-  <button onclick="showTab('tendance')" id="tab-tendance" class="tab-btn">Tendance 6 mois</button>
+<!-- Onglets ─────────────────────────────────────────────────────────────── -->
+<div class="flex gap-1 mb-6 bg-gray-100 dark:bg-slate-800 p-1 rounded-2xl w-fit">
+  <button onclick="showTab('semaine')" id="tab-semaine"
+    class="tab-btn px-4 py-2 rounded-xl text-sm font-semibold transition active-tab">Cette semaine</button>
+  <button onclick="showTab('mois')" id="tab-mois"
+    class="tab-btn px-4 py-2 rounded-xl text-sm font-semibold transition">Ce mois</button>
+  <button onclick="showTab('tendance')" id="tab-tendance"
+    class="tab-btn px-4 py-2 rounded-xl text-sm font-semibold transition">Tendance 6 mois</button>
 </div>
 
-<!-- ══ ONGLET SEMAINE ══════════════════════════════════════════════════════ -->
+<!-- ══ ONGLET SEMAINE ════════════════════════════════════════════════════ -->
 <div id="tab-content-semaine">
-
-  <!-- KPIs semaine -->
-  <div class="grid-3 mb-3">
-    <div class="stat-card">
-      <div class="stat-label">Dépenses semaine</div>
-      <div class="stat-value red" style="font-size:1.3rem;">{{ total_week_exp|cfa }}</div>
-      {% if weekly %}<div class="stat-sub">sur {{ weekly.total_amount|cfa }} budgétés</div>{% endif %}
+  <div class="grid grid-cols-3 gap-4 mb-6">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+      <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Dépenses semaine</p>
+      <p class="text-xl font-extrabold text-red-500">{{ total_week_exp|cfa }}</p>
+      {% if weekly %}<p class="text-xs text-gray-400 dark:text-slate-500 mt-1">sur {{ weekly.total_amount|cfa }}</p>{% endif %}
     </div>
-    <div class="stat-card">
-      <div class="stat-label">Reste budget semaine</div>
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
       {% set reste_sem = (weekly.total_amount - total_week_exp) if weekly else 0 %}
-      <div class="stat-value {{ 'green' if reste_sem >= 0 else 'red' }}" style="font-size:1.3rem;">{{ reste_sem|cfa }}</div>
+      <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Reste budget</p>
+      <p class="text-xl font-extrabold {{ 'text-emerald-500' if reste_sem >= 0 else 'text-red-500' }}">{{ reste_sem|cfa }}</p>
     </div>
-    <div class="stat-card">
-      <div class="stat-label">Utilisation</div>
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
       {% set pct_sem = (total_week_exp / weekly.total_amount * 100) if weekly and weekly.total_amount > 0 else 0 %}
-      <div class="stat-value {{ 'red' if pct_sem > 90 else 'amber' if pct_sem > 70 else 'green' }}" style="font-size:1.3rem;">{{ "%.1f"|format(pct_sem) }}%</div>
+      <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Utilisation</p>
+      <p class="text-xl font-extrabold {{ 'text-red-500' if pct_sem > 90 else 'text-amber-500' if pct_sem > 70 else 'text-emerald-500' }}">{{ "%.1f"|format(pct_sem) }}%</p>
     </div>
   </div>
 
-  <div class="grid-2">
-    <!-- Graphique dépenses par jour -->
-    <div class="card">
-      <div class="section-title">Dépenses vs Budget par jour</div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+      <h3 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-4">Dépenses vs Budget par jour</h3>
       <div style="position:relative; height:220px;">
         <canvas id="chartDailyWeek"></canvas>
       </div>
     </div>
-
-    <!-- Répartition par catégorie semaine -->
-    <div class="card">
-      <div class="section-title">Répartition par catégorie</div>
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+      <h3 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-4">Répartition par catégorie</h3>
       {% if by_cat_week %}
       <div style="position:relative; height:180px; margin-bottom:1rem;">
         <canvas id="chartCatWeek"></canvas>
       </div>
-      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+      <div class="flex flex-wrap gap-2">
         {% for c in by_cat_week %}
-        <span style="display:flex; align-items:center; gap:5px; font-size:0.78rem; color:var(--muted);">
-          <span style="width:10px; height:10px; border-radius:2px; background:{{ c.color }}; flex-shrink:0;"></span>
-          {{ c.icon }} {{ c.name }} — <strong style="color:var(--text);">{{ c.total|cfa }}</strong>
+        <span class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
+          <span class="w-2.5 h-2.5 rounded-sm flex-shrink-0" style="background:{{ c.color }}"></span>
+          {{ c.icon }} {{ c.name }} — <strong class="text-gray-800 dark:text-slate-200">{{ c.total|cfa }}</strong>
         </span>
         {% endfor %}
       </div>
       {% else %}
-      <div style="text-align:center; padding:2rem; color:var(--muted);">Aucune dépense cette semaine.</div>
+      <div class="text-center py-10 text-sm text-gray-400 dark:text-slate-500">Aucune dépense cette semaine.</div>
       {% endif %}
     </div>
   </div>
 
-  <!-- Détail par catégorie semaine -->
   {% if by_cat_week %}
-  <div class="card mt-2" style="padding:1rem;">
-    <div class="section-title">Détail par catégorie — semaine</div>
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+    <h3 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-4">Détail par catégorie — semaine</h3>
     {% set max_cat = by_cat_week[0].total %}
-    {% for c in by_cat_week %}
-    <div style="margin-bottom:0.875rem;">
-      <div style="display:flex; justify-content:space-between; font-size:0.875rem; margin-bottom:4px;">
-        <span>{{ c.icon }} {{ c.name }}</span>
-        <span class="font-bold">{{ c.total|cfa }} <span class="text-muted" style="font-weight:400;">({{ "%.0f"|format(c.total / total_week_exp * 100) if total_week_exp > 0 else 0 }}%)</span></span>
+    <div class="space-y-3">
+      {% for c in by_cat_week %}
+      <div>
+        <div class="flex justify-between items-center mb-1.5">
+          <span class="text-sm font-medium text-gray-700 dark:text-slate-300">{{ c.icon }} {{ c.name }}</span>
+          <span class="text-sm font-bold text-gray-900 dark:text-white">{{ c.total|cfa }} <span class="text-xs font-normal text-gray-400">({{ "%.0f"|format(c.total / total_week_exp * 100) if total_week_exp > 0 else 0 }}%)</span></span>
+        </div>
+        <div class="jf-progress-sm">
+          <div class="jf-progress-bar" style="width:{{ (c.total / max_cat * 100) if max_cat > 0 else 0 }}%; background:{{ c.color }};"></div>
+        </div>
       </div>
-      <div class="progress">
-        <div class="progress-bar" style="width:{{ (c.total / max_cat * 100) if max_cat > 0 else 0 }}%; background:{{ c.color }};"></div>
-      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
   </div>
   {% endif %}
 </div>
 
-<!-- ══ ONGLET MOIS ══════════════════════════════════════════════════════════ -->
-<div id="tab-content-mois" style="display:none;">
-
-  <div class="grid-3 mb-3">
-    <div class="stat-card">
-      <div class="stat-label">Revenus ce mois</div>
-      <div class="stat-value green" style="font-size:1.3rem;">+{{ total_month_inc|cfa }}</div>
+<!-- ══ ONGLET MOIS ════════════════════════════════════════════════════════ -->
+<div id="tab-content-mois" style="display:none">
+  <div class="grid grid-cols-3 gap-4 mb-6">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+      <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Revenus</p>
+      <p class="text-xl font-extrabold text-emerald-500">+{{ total_month_inc|cfa }}</p>
     </div>
-    <div class="stat-card">
-      <div class="stat-label">Dépenses ce mois</div>
-      <div class="stat-value red" style="font-size:1.3rem;">-{{ total_month_exp|cfa }}</div>
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+      <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Dépenses</p>
+      <p class="text-xl font-extrabold text-red-500">-{{ total_month_exp|cfa }}</p>
     </div>
-    <div class="stat-card">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
       {% set epargne = total_month_inc - total_month_exp %}
-      <div class="stat-label">Épargne nette</div>
-      <div class="stat-value {{ 'green' if epargne >= 0 else 'red' }}" style="font-size:1.3rem;">{{ epargne|cfa }}</div>
+      <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Épargne nette</p>
+      <p class="text-xl font-extrabold {{ 'text-emerald-500' if epargne >= 0 else 'text-red-500' }}">{{ epargne|cfa }}</p>
     </div>
   </div>
 
-  <div class="grid-2">
-    <!-- Donut par catégorie mois -->
-    <div class="card">
-      <div class="section-title">Répartition par catégorie</div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+      <h3 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-4">Répartition par catégorie</h3>
       {% if by_cat_month %}
       <div style="position:relative; height:200px; margin-bottom:1rem;">
         <canvas id="chartCatMonth"></canvas>
       </div>
-      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+      <div class="flex flex-wrap gap-2">
         {% for c in by_cat_month %}
-        <span style="display:flex; align-items:center; gap:5px; font-size:0.78rem; color:var(--muted);">
-          <span style="width:10px; height:10px; border-radius:2px; background:{{ c.color }}; flex-shrink:0;"></span>
-          {{ c.icon }} {{ c.name }} — <strong style="color:var(--text);">{{ c.total|cfa }}</strong>
+        <span class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
+          <span class="w-2.5 h-2.5 rounded-sm flex-shrink-0" style="background:{{ c.color }}"></span>
+          {{ c.icon }} {{ c.name }} — <strong class="text-gray-800 dark:text-slate-200">{{ c.total|cfa }}</strong>
         </span>
         {% endfor %}
       </div>
       {% else %}
-      <div style="text-align:center; padding:2rem; color:var(--muted);">Aucune dépense ce mois.</div>
+      <div class="text-center py-10 text-sm text-gray-400 dark:text-slate-500">Aucune dépense ce mois.</div>
       {% endif %}
     </div>
-
-    <!-- Revenus vs Dépenses -->
-    <div class="card">
-      <div class="section-title">Revenus vs Dépenses</div>
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+      <h3 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-4">Revenus vs Dépenses</h3>
       <div style="position:relative; height:200px;">
         <canvas id="chartIncomeVsExp"></canvas>
       </div>
     </div>
   </div>
 
-  <!-- Détail par catégorie mois -->
   {% if by_cat_month %}
-  <div class="card mt-2" style="padding:1rem;">
-    <div class="section-title">Détail par catégorie — mois</div>
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+    <h3 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-4">Détail par catégorie — mois</h3>
     {% set max_cat_m = by_cat_month[0].total %}
-    {% for c in by_cat_month %}
-    <div style="margin-bottom:0.875rem;">
-      <div style="display:flex; justify-content:space-between; font-size:0.875rem; margin-bottom:4px;">
-        <span>{{ c.icon }} {{ c.name }}</span>
-        <span class="font-bold">{{ c.total|cfa }} <span class="text-muted" style="font-weight:400;">({{ "%.0f"|format(c.total / total_month_exp * 100) if total_month_exp > 0 else 0 }}%)</span></span>
+    <div class="space-y-3">
+      {% for c in by_cat_month %}
+      <div>
+        <div class="flex justify-between items-center mb-1.5">
+          <span class="text-sm font-medium text-gray-700 dark:text-slate-300">{{ c.icon }} {{ c.name }}</span>
+          <span class="text-sm font-bold text-gray-900 dark:text-white">{{ c.total|cfa }} <span class="text-xs font-normal text-gray-400">({{ "%.0f"|format(c.total / total_month_exp * 100) if total_month_exp > 0 else 0 }}%)</span></span>
+        </div>
+        <div class="jf-progress-sm">
+          <div class="jf-progress-bar" style="width:{{ (c.total / max_cat_m * 100) if max_cat_m > 0 else 0 }}%; background:{{ c.color }};"></div>
+        </div>
       </div>
-      <div class="progress">
-        <div class="progress-bar" style="width:{{ (c.total / max_cat_m * 100) if max_cat_m > 0 else 0 }}%; background:{{ c.color }};"></div>
-      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
   </div>
   {% endif %}
 </div>
 
-<!-- ══ ONGLET TENDANCE 6 MOIS ══════════════════════════════════════════════ -->
-<div id="tab-content-tendance" style="display:none;">
-  <div class="card mb-2">
-    <div class="section-title">Revenus & Dépenses sur 6 mois</div>
+<!-- ══ ONGLET TENDANCE ════════════════════════════════════════════════════ -->
+<div id="tab-content-tendance" style="display:none">
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5 mb-5">
+    <h3 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-4">Revenus & Dépenses sur 6 mois</h3>
     <div style="position:relative; height:280px;">
       <canvas id="chartTrend"></canvas>
     </div>
   </div>
-
-  <div class="card" style="padding:1rem;">
-    <div class="section-title">Résumé mensuel</div>
-    <table>
-      <thead><tr>
-        <th>Mois</th><th class="text-right">Revenus</th><th class="text-right">Dépenses</th><th class="text-right">Épargne</th>
-      </tr></thead>
-      <tbody>
-      {% for m in monthly_trend %}
-      <tr>
-        <td style="font-size:0.875rem;">{{ m.month }}</td>
-        <td class="text-right green" style="font-size:0.875rem;">+{{ m.income|cfa }}</td>
-        <td class="text-right red" style="font-size:0.875rem;">-{{ m.expenses|cfa }}</td>
-        {% set ep = m.income - m.expenses %}
-        <td class="text-right font-bold {{ 'green' if ep >= 0 else 'red' }}" style="font-size:0.875rem;">{{ ep|cfa }}</td>
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-800">
+      <h3 class="text-sm font-bold text-gray-700 dark:text-slate-300">Résumé mensuel</h3>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full jf-table">
+        <thead>
+          <tr class="border-b border-gray-100 dark:border-slate-800">
+            <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Mois</th>
+            <th class="px-5 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Revenus</th>
+            <th class="px-5 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Dépenses</th>
+            <th class="px-5 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Épargne</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50 dark:divide-slate-800">
+          {% for m in monthly_trend %}
+          <tr class="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition">
+            <td class="px-5 py-3.5 text-sm font-semibold text-gray-800 dark:text-slate-200">{{ m.month }}</td>
+            <td class="px-5 py-3.5 text-right text-sm font-bold text-emerald-500">+{{ m.income|cfa }}</td>
+            <td class="px-5 py-3.5 text-right text-sm font-bold text-red-500">-{{ m.expenses|cfa }}</td>
+            {% set ep = m.income - m.expenses %}
+            <td class="px-5 py-3.5 text-right text-sm font-bold {{ 'text-emerald-500' if ep >= 0 else 'text-red-500' }}">{{ ep|cfa }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
 <style>
-.tab-btn {
-  background: none; border: none; padding: 0.5rem 1rem;
-  color: var(--muted); cursor: pointer; font-size: 0.9rem;
-  border-bottom: 2px solid transparent; margin-bottom: -1px;
-  transition: all 0.15s;
-}
-.tab-btn:hover { color: var(--text); }
-.active-tab { color: var(--text) !important; border-bottom-color: var(--blue) !important; font-weight: 500; }
+.tab-btn { color: #6b7280; }
+.dark .tab-btn { color: #94a3b8; }
+.active-tab { background: white; color: #1f2937 !important; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.dark .active-tab { background: #1e293b; color: #f1f5f9 !important; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
 </style>
+
+<!-- Chart data embedded as JSON to avoid JS parse errors with Jinja2 -->
+<script type="application/json" id="jf-chart-data">
+{
+  "dailyWeek": {{ daily_week | tojson }},
+  "catWeek":   {{ by_cat_week | tojson }},
+  "catMonth":  {{ by_cat_month | tojson }},
+  "trend":     {{ monthly_trend | tojson }},
+  "monthInc":  {{ total_month_inc }},
+  "monthExp":  {{ total_month_exp }}
+}
+</script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
+const _cd = JSON.parse(document.getElementById('jf-chart-data').textContent);
+const dailyWeek = _cd.dailyWeek;
+const catWeek   = _cd.catWeek;
+const catMonth  = _cd.catMonth;
+const trend     = _cd.trend;
+const monthInc  = _cd.monthInc;
+const monthExp  = _cd.monthExp;
+
+const isDark = () => document.documentElement.classList.contains('dark');
+const gridColor   = () => isDark() ? 'rgba(148,163,184,0.1)' : 'rgba(0,0,0,0.06)';
+const tickColor   = () => isDark() ? '#64748b' : '#9ca3af';
+const borderColor = () => isDark() ? '#1e293b' : '#ffffff';
+
 function showTab(name) {
   ['semaine','mois','tendance'].forEach(t => {
     document.getElementById('tab-content-'+t).style.display = t===name ? 'block' : 'none';
-    document.getElementById('tab-'+t).classList.toggle('active-tab', t===name);
+    const btn = document.getElementById('tab-'+t);
+    btn.classList.toggle('active-tab', t===name);
   });
 }
 
-// ── Données depuis Jinja ────────────────────────────────────────────────────
-const dailyWeek = {{ daily_week | tojson }};
-const catWeek   = {{ by_cat_week | tojson }};
-const catMonth  = {{ by_cat_month | tojson }};
-const trend     = {{ monthly_trend | tojson }};
-const monthInc  = {{ total_month_inc }};
-const monthExp  = {{ total_month_exp }};
+const baseOpts = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { ticks: { font:{size:11}, color: tickColor() }, grid: { display: false } },
+    y: { ticks: { font:{size:11}, color: tickColor(), callback: v => v.toLocaleString('fr-FR') }, grid: { color: gridColor() } }
+  }
+};
 
-// ── Graphique dépenses vs budget par jour ──────────────────────────────────
 new Chart(document.getElementById('chartDailyWeek'), {
   type: 'bar',
   data: {
     labels: dailyWeek.map(d => d.label + (d.is_today ? ' ●' : '')),
     datasets: [
-      { label: 'Budget', data: dailyWeek.map(d => d.budget),
-        backgroundColor: 'rgba(59,130,246,0.2)', borderColor: '#3b82f6', borderWidth: 1.5, borderRadius: 4 },
-      { label: 'Dépensé', data: dailyWeek.map(d => d.spent),
-        backgroundColor: dailyWeek.map(d => d.spent > d.budget ? '#ef4444' : '#10b981'),
-        borderRadius: 4 }
+      { label: 'Budget', data: dailyWeek.map(d => d.budget), backgroundColor: 'rgba(59,130,246,0.15)', borderColor:'#3b82f6', borderWidth:1.5, borderRadius:6 },
+      { label: 'Dépensé', data: dailyWeek.map(d => d.spent), backgroundColor: dailyWeek.map(d => d.spent > d.budget ? '#ef4444' : '#10b981'), borderRadius:6 }
     ]
   },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { ticks: { font: { size: 11 }, color: '#888780' }, grid: { display: false } },
-      y: { ticks: { font: { size: 11 }, color: '#888780', callback: v => v.toLocaleString('fr-FR') + ' FCFA' }, grid: { color: 'rgba(180,178,169,0.15)' } }
-    }
-  }
+  options: baseOpts
 });
 
-// ── Donut catégories semaine ───────────────────────────────────────────────
 if (catWeek.length) {
   new Chart(document.getElementById('chartCatWeek'), {
     type: 'doughnut',
     data: {
-      labels: catWeek.map(c => c.icon + ' ' + c.name),
-      datasets: [{ data: catWeek.map(c => c.total), backgroundColor: catWeek.map(c => c.color), borderWidth: 2, borderColor: '#1e293b' }]
+      labels: catWeek.map(c => c.icon+' '+c.name),
+      datasets: [{ data: catWeek.map(c=>c.total), backgroundColor: catWeek.map(c=>c.color), borderWidth:2, borderColor: borderColor() }]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '65%' }
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, cutout:'65%' }
   });
 }
 
-// ── Donut catégories mois ─────────────────────────────────────────────────
 if (catMonth.length) {
   new Chart(document.getElementById('chartCatMonth'), {
     type: 'doughnut',
     data: {
-      labels: catMonth.map(c => c.icon + ' ' + c.name),
-      datasets: [{ data: catMonth.map(c => c.total), backgroundColor: catMonth.map(c => c.color), borderWidth: 2, borderColor: '#1e293b' }]
+      labels: catMonth.map(c => c.icon+' '+c.name),
+      datasets: [{ data: catMonth.map(c=>c.total), backgroundColor: catMonth.map(c=>c.color), borderWidth:2, borderColor: borderColor() }]
     },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '65%' }
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, cutout:'65%' }
   });
 }
 
-// ── Revenus vs Dépenses mois ──────────────────────────────────────────────
 new Chart(document.getElementById('chartIncomeVsExp'), {
   type: 'bar',
   data: {
     labels: ['Ce mois'],
     datasets: [
-      { label: 'Revenus', data: [monthInc], backgroundColor: '#10b981', borderRadius: 6 },
-      { label: 'Dépenses', data: [monthExp], backgroundColor: '#ef4444', borderRadius: 6 }
+      { label:'Revenus',  data:[monthInc], backgroundColor:'#10b981', borderRadius:8 },
+      { label:'Dépenses', data:[monthExp], backgroundColor:'#ef4444', borderRadius:8 }
     ]
   },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { ticks: { font: { size: 11 }, color: '#888780' }, grid: { display: false } },
-      y: { ticks: { font: { size: 11 }, color: '#888780', callback: v => v.toLocaleString('fr-FR') + ' FCFA' }, grid: { color: 'rgba(180,178,169,0.15)' } }
-    }
-  }
+  options: baseOpts
 });
 
-// ── Tendance 6 mois ───────────────────────────────────────────────────────
 new Chart(document.getElementById('chartTrend'), {
   type: 'line',
   data: {
-    labels: trend.map(m => m.month),
+    labels: trend.map(m=>m.month),
     datasets: [
-      { label: 'Revenus', data: trend.map(m => m.income),
-        borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)',
-        fill: true, tension: 0.3, pointRadius: 4, borderWidth: 2 },
-      { label: 'Dépenses', data: trend.map(m => m.expenses),
-        borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)',
-        fill: true, tension: 0.3, pointRadius: 4, borderWidth: 2 }
+      { label:'Revenus',  data:trend.map(m=>m.income),   borderColor:'#10b981', backgroundColor:'rgba(16,185,129,0.08)', fill:true, tension:0.3, pointRadius:4, borderWidth:2 },
+      { label:'Dépenses', data:trend.map(m=>m.expenses), borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,0.08)',  fill:true, tension:0.3, pointRadius:4, borderWidth:2 }
     ]
   },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { ticks: { font: { size: 11 }, color: '#888780' }, grid: { display: false } },
-      y: { ticks: { font: { size: 11 }, color: '#888780', callback: v => v.toLocaleString('fr-FR') + ' FCFA' }, grid: { color: 'rgba(180,178,169,0.15)' } }
-    }
-  }
+  options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales: {
+    x: { ticks:{font:{size:11},color:tickColor()}, grid:{display:false} },
+    y: { ticks:{font:{size:11},color:tickColor(), callback: v=>v.toLocaleString('fr-FR')}, grid:{color:gridColor()} }
+  }}
 });
 </script>
 {% endblock %}

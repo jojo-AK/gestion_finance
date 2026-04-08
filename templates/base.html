@@ -1,149 +1,232 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>💰 Finance Perso</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg: #0f172a; --surface: #1e293b; --surface2: #334155;
-    --border: #475569; --text: #f1f5f9; --muted: #94a3b8;
-    --green: #10b981; --red: #ef4444; --blue: #3b82f6;
-    --purple: #8b5cf6; --amber: #f59e0b;
-    --radius: 12px; --radius-sm: 8px;
-  }
-  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; min-height: 100vh; }
-  a { color: var(--blue); text-decoration: none; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>jofinance</title>
+  <script>
+    // Apply theme before render to avoid flash
+    try {
+      const t = localStorage.getItem('jf-theme') || 'light';
+      if (t === 'dark') document.documentElement.classList.add('dark');
+    } catch(e) {}
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'] },
+          colors: {
+            surface: { DEFAULT: '#ffffff', dark: '#0f172a' }
+          },
+          borderRadius: { '2xl': '1rem', '3xl': '1.5rem' }
+        }
+      }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
 
-  /* NAV */
-  nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 1.5rem; position: sticky; top: 0; z-index: 100; }
-  .nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; gap: 0.25rem; height: 60px; }
-  .nav-brand { font-size: 1.1rem; font-weight: 700; color: var(--text); margin-right: auto; }
-  .nav-link { color: var(--muted); padding: 0.5rem 0.875rem; border-radius: var(--radius-sm); font-size: 0.875rem; transition: all 0.15s; white-space: nowrap; }
-  .nav-link:hover, .nav-link.active { background: var(--surface2); color: var(--text); }
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+    .dark ::-webkit-scrollbar-thumb { background: #334155; }
 
-  /* LAYOUT */
-  .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+    /* Glass card hover */
+    .jf-card { transition: box-shadow 0.2s ease, transform 0.15s ease; }
+    .jf-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.07); transform: translateY(-1px); }
+    .dark .jf-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.35); }
 
-  /* CARDS */
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; }
-  .card-sm { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; }
+    /* Mobile sidebar */
+    #mob-sidebar { transform: translateX(-100%); transition: transform 0.28s cubic-bezier(.4,0,.2,1); }
+    #mob-sidebar.open { transform: translateX(0); }
+    #mob-overlay { display: none; }
+    #mob-overlay.open { display: block; }
 
-  /* GRID */
-  .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
-  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem; }
-  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+    /* Input/select base */
+    .jf-input {
+      width: 100%;
+      padding: 0.625rem 0.875rem;
+      border-radius: 0.75rem;
+      border: 1.5px solid #e2e8f0;
+      background: #f8fafc;
+      color: #0f172a;
+      font-size: 0.9rem;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .jf-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+    .dark .jf-input { background: #1e293b; border-color: #334155; color: #f1f5f9; }
+    .dark .jf-input:focus { border-color: #3b82f6; }
 
-  /* STAT CARD */
-  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
-  .stat-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
-  .stat-value { font-size: 1.75rem; font-weight: 700; }
-  .stat-sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.375rem; }
-  .green { color: var(--green); }
-  .red { color: var(--red); }
-  .blue { color: var(--blue); }
-  .amber { color: var(--amber); }
+    /* Progress bar 24px */
+    .jf-progress { height: 24px; border-radius: 999px; background: #f1f5f9; overflow: hidden; }
+    .dark .jf-progress { background: #1e293b; }
+    .jf-progress-bar { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
 
-  /* FORMS */
-  .form-group { margin-bottom: 1.25rem; }
-  label { display: block; font-size: 0.875rem; color: var(--muted); margin-bottom: 0.375rem; }
-  input, select, textarea {
-    width: 100%; background: var(--surface2); border: 1px solid var(--border);
-    color: var(--text); border-radius: var(--radius-sm); padding: 0.625rem 0.875rem;
-    font-size: 0.9rem; outline: none; transition: border-color 0.15s;
-  }
-  input:focus, select:focus, textarea:focus { border-color: var(--blue); }
-  .range-row { display: flex; align-items: center; gap: 1rem; }
-  input[type="range"] { flex: 1; accent-color: var(--blue); height: 6px; }
-  .range-label { font-size: 0.9rem; font-weight: 600; min-width: 48px; color: var(--blue); }
+    /* Progress bar 8px (compact) */
+    .jf-progress-sm { height: 8px; border-radius: 999px; background: #f1f5f9; overflow: hidden; }
+    .dark .jf-progress-sm { background: #1e293b; }
+    .jf-progress-sm .jf-progress-bar { height: 100%; }
 
-  /* BUTTONS */
-  .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.625rem 1.25rem;
-    border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 500; cursor: pointer;
-    border: none; transition: all 0.15s; }
-  .btn-primary { background: var(--blue); color: white; }
-  .btn-primary:hover { background: #2563eb; }
-  .btn-success { background: var(--green); color: white; }
-  .btn-success:hover { background: #059669; }
-  .btn-danger { background: var(--red); color: white; }
-  .btn-sm { padding: 0.375rem 0.75rem; font-size: 0.8rem; }
-  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--muted); }
-  .btn-outline:hover { border-color: var(--blue); color: var(--blue); }
+    /* Gradient fills */
+    .fill-blue   { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+    .fill-green  { background: linear-gradient(90deg, #10b981, #059669); }
+    .fill-red    { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    .fill-amber  { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .fill-purple { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
 
-  /* TABLE */
-  table { width: 100%; border-collapse: collapse; }
-  th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border); }
-  td { padding: 0.875rem 1rem; border-bottom: 1px solid #1e293b; font-size: 0.9rem; }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: var(--surface2); }
+    /* Pulse live dot */
+    @keyframes livepulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(1.3)} }
+    .live-dot { animation: livepulse 1.8s infinite; }
 
-  /* BADGE */
-  .badge { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 500; }
-  .badge-green { background: #065f46; color: #6ee7b7; }
-  .badge-red { background: #7f1d1d; color: #fca5a5; }
-  .badge-blue { background: #1e3a5f; color: #93c5fd; }
-  .badge-gray { background: var(--surface2); color: var(--muted); }
+    /* Nav active */
+    .nav-link-active {
+      background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(37,99,235,0.06));
+      color: #2563eb !important;
+    }
+    .dark .nav-link-active {
+      background: rgba(59,130,246,0.15);
+      color: #93c5fd !important;
+    }
 
-  /* ALERTS */
-  .alert { padding: 0.875rem 1.25rem; border-radius: var(--radius-sm); margin-bottom: 1rem; font-size: 0.9rem; }
-  .alert-success { background: #064e3b; border: 1px solid #065f46; color: #6ee7b7; }
-  .alert-error { background: #7f1d1d; border: 1px solid #991b1b; color: #fca5a5; }
-
-  /* PROGRESS BAR */
-  .progress { background: var(--surface2); border-radius: 999px; height: 8px; overflow: hidden; }
-  .progress-bar { height: 100%; border-radius: 999px; transition: width 0.3s; }
-
-  /* SECTION TITLE */
-  .section-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
-
-  /* MODAL STYLE FORM */
-  .form-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; max-width: 500px; }
-
-  /* MISC */
-  .flex { display: flex; align-items: center; }
-  .gap-1 { gap: 0.5rem; }
-  .gap-2 { gap: 1rem; }
-  .justify-between { justify-content: space-between; }
-  .mt-1 { margin-top: 0.5rem; }
-  .mt-2 { margin-top: 1rem; }
-  .mt-3 { margin-top: 1.5rem; }
-  .mb-1 { margin-bottom: 0.5rem; }
-  .mb-2 { margin-bottom: 1rem; }
-  .mb-3 { margin-bottom: 1.5rem; }
-  .text-muted { color: var(--muted); font-size: 0.875rem; }
-  .text-right { text-align: right; }
-  .font-bold { font-weight: 700; }
-  .w-full { width: 100%; }
-</style>
+    /* Table rows */
+    .jf-table tr { transition: background 0.1s; }
+  </style>
 </head>
-<body>
-<nav>
-  <div class="nav-inner" style="flex-wrap:wrap; height:auto; padding:0.5rem 0; gap:0.1rem;">
-    <span class="nav-brand" style="margin-right:0.5rem;">💰 Finance</span>
-    <a href="/" class="nav-link {% if request.endpoint=='index' %}active{% endif %}">🏠 Dashboard</a>
-    <a href="/revenu" class="nav-link {% if request.endpoint=='revenu' %}active{% endif %}">📥 Revenus</a>
-    <a href="/depense" class="nav-link {% if request.endpoint=='depense' %}active{% endif %}">📤 Dépenses</a>
-    <a href="/budget" class="nav-link {% if request.endpoint=='budget' %}active{% endif %}">📅 Budget</a>
-    <a href="/reserve" class="nav-link {% if request.endpoint=='reserve' %}active{% endif %}">🏦 Réserve</a>
-    <a href="/prets" class="nav-link {% if request.endpoint=='prets' %}active{% endif %}">🤝 Prêts</a>
-    <a href="/stats" class="nav-link {% if request.endpoint=='stats' %}active{% endif %}">📊 Stats</a>
-    <a href="/historique" class="nav-link {% if request.endpoint=='historique' %}active{% endif %}">📋 Historique</a>
-    <a href="/bilan" class="nav-link {% if request.endpoint=='bilan' %}active{% endif %}">📈 Bilan</a>
-    <a href="/objectifs" class="nav-link {% if request.endpoint=='objectifs' %}active{% endif %}">🎯 Objectifs</a>
-    <a href="/recurrentes" class="nav-link {% if request.endpoint=='recurrentes' %}active{% endif %}">🔄 Récurrentes</a>
-    <a href="/categories" class="nav-link {% if request.endpoint=='categories' %}active{% endif %}">🗂️ Catégories</a>
+
+<body class="bg-[#FCFCFD] dark:bg-slate-950 text-gray-900 dark:text-slate-100 antialiased">
+
+<!-- ── MOBILE overlay ────────────────────────────────────────────────────── -->
+<div id="mob-overlay" class="fixed inset-0 bg-black/50 z-40 md:hidden" onclick="closeSidebar()"></div>
+
+<!-- ── SIDEBAR (desktop always visible, mobile slide-in) ─────────────────── -->
+{% macro nav_link(href, icon, label, endpoint) %}
+<a href="{{ href }}" class="flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm font-medium transition-all duration-150 {% if request.endpoint == endpoint %}nav-link-active{% else %}text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800{% endif %}">
+  <span class="text-[1.05rem] w-5 text-center flex-shrink-0">{{ icon }}</span>
+  <span>{{ label }}</span>
+</a>
+{% endmacro %}
+
+{% set sidebar_content %}
+  <!-- Logo -->
+  <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-800">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl flex items-center justify-center shadow-md shadow-blue-200 dark:shadow-blue-900/40 flex-shrink-0">
+        <span class="text-white font-extrabold text-lg leading-none">J</span>
+      </div>
+      <div>
+        <div class="font-extrabold text-gray-900 dark:text-white text-sm tracking-tight">jofinance</div>
+        <div class="text-xs text-gray-400 dark:text-slate-500 font-normal">Gestion perso</div>
+      </div>
+    </div>
   </div>
-</nav>
-<div class="container">
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      {% for cat, msg in messages %}
-        <div class="alert alert-{{ 'success' if cat == 'success' else 'error' }}">{{ msg }}</div>
-      {% endfor %}
-    {% endif %}
-  {% endwith %}
-  {% block content %}{% endblock %}
+
+  <!-- Nav -->
+  <nav class="flex-1 p-3 space-y-0.5 overflow-y-auto">
+    <div class="px-3 py-1.5 text-[0.68rem] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-widest">Principal</div>
+    {{ nav_link('/', '🏠', 'Dashboard', 'index') }}
+    {{ nav_link('/budget', '📅', 'Budget', 'budget') }}
+    {{ nav_link('/stats', '📊', 'Statistiques', 'stats') }}
+    {{ nav_link('/bilan', '📈', 'Bilan mensuel', 'bilan') }}
+
+    <div class="px-3 py-1.5 mt-3 text-[0.68rem] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-widest">Opérations</div>
+    {{ nav_link('/revenu', '📥', 'Revenus', 'revenu') }}
+    {{ nav_link('/depense', '📤', 'Dépenses', 'depense') }}
+    {{ nav_link('/reserve', '🏦', 'Réserve', 'reserve') }}
+    {{ nav_link('/prets', '🤝', 'Prêts', 'prets') }}
+    {{ nav_link('/historique', '📋', 'Historique', 'historique') }}
+
+    <div class="px-3 py-1.5 mt-3 text-[0.68rem] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-widest">Paramètres</div>
+    {{ nav_link('/objectifs', '🎯', 'Objectifs', 'objectifs') }}
+    {{ nav_link('/recurrentes', '🔄', 'Récurrentes', 'recurrentes') }}
+    {{ nav_link('/categories', '🗂️', 'Catégories', 'categories') }}
+  </nav>
+
+  <!-- Theme toggle -->
+  <div class="p-3 border-t border-gray-100 dark:border-slate-800">
+    <button onclick="toggleDark()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm font-medium text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all">
+      <span id="theme-icon" class="w-5 text-center text-[1.05rem]">🌙</span>
+      <span id="theme-label">Mode sombre</span>
+    </button>
+  </div>
+{% endset %}
+
+<!-- Desktop sidebar -->
+<aside class="fixed inset-y-0 left-0 w-64 bg-white dark:bg-slate-900 border-r border-gray-100 dark:border-slate-800 z-30 flex-col hidden md:flex">
+  {{ sidebar_content }}
+</aside>
+
+<!-- Mobile sidebar -->
+<aside id="mob-sidebar" class="fixed inset-y-0 left-0 w-64 bg-white dark:bg-slate-900 border-r border-gray-100 dark:border-slate-800 z-50 flex flex-col md:hidden">
+  {{ sidebar_content }}
+</aside>
+
+<!-- ── MAIN AREA ───────────────────────────────────────────────────────────── -->
+<div class="md:ml-64 min-h-screen flex flex-col">
+
+  <!-- Mobile top bar -->
+  <header class="md:hidden sticky top-0 z-20 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-gray-100 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
+    <button onclick="openSidebar()" class="p-2 rounded-xl text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 transition text-lg">
+      ☰
+    </button>
+    <div class="font-extrabold text-gray-900 dark:text-white text-sm tracking-tight">jofinance</div>
+    <button onclick="toggleDark()" class="p-2 rounded-xl text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800 transition">
+      <span id="mob-theme-icon" class="text-base">🌙</span>
+    </button>
+  </header>
+
+  <!-- Page content -->
+  <main class="flex-1 p-5 md:p-8 w-full max-w-[1300px] mx-auto">
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for cat, msg in messages %}
+        <div class="mb-5 px-4 py-3 rounded-2xl text-sm font-medium flex items-center justify-between
+          {% if cat == 'success' %}bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50 text-emerald-700 dark:text-emerald-300
+          {% else %}bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 text-red-700 dark:text-red-300{% endif %}">
+          <span>{{ msg }}</span>
+          <button onclick="this.parentElement.remove()" class="ml-4 opacity-50 hover:opacity-100 transition text-base leading-none">✕</button>
+        </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
 </div>
+
+<script>
+function toggleDark() {
+  const isDark = document.documentElement.classList.toggle('dark');
+  try { localStorage.setItem('jf-theme', isDark ? 'dark' : 'light'); } catch(e) {}
+  _syncThemeUI(isDark);
+}
+function _syncThemeUI(isDark) {
+  const icon  = document.getElementById('theme-icon');
+  const label = document.getElementById('theme-label');
+  const mIcon = document.getElementById('mob-theme-icon');
+  if (icon)  icon.textContent  = isDark ? '☀️' : '🌙';
+  if (label) label.textContent = isDark ? 'Mode clair' : 'Mode sombre';
+  if (mIcon) mIcon.textContent = isDark ? '☀️' : '🌙';
+}
+// Init
+_syncThemeUI(document.documentElement.classList.contains('dark'));
+
+function openSidebar() {
+  document.getElementById('mob-sidebar').classList.add('open');
+  document.getElementById('mob-overlay').classList.add('open');
+}
+function closeSidebar() {
+  document.getElementById('mob-sidebar').classList.remove('open');
+  document.getElementById('mob-overlay').classList.remove('open');
+}
+</script>
 </body>
 </html>

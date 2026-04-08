@@ -1,119 +1,189 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="mb-3">
-  <h1 style="font-size:1.5rem; font-weight:700; margin-bottom:0.25rem;">Tableau de bord</h1>
-  <p class="text-muted">{{ now.strftime('%A %d %B %Y') }}</p>
+<!-- Header -->
+<div class="mb-7">
+  <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">Centre de contrôle</h1>
+  <p class="text-sm text-gray-400 dark:text-slate-500 mt-0.5">{{ now.strftime('%A %d %B %Y') }}</p>
 </div>
 
-<!-- ALERTES DYNAMIQUES -->
-<div id="alertes-container" style="margin-bottom:1rem;"></div>
+<!-- Alertes dynamiques -->
+<div id="alertes-container" class="mb-5 space-y-2"></div>
 
-<div class="grid-4 mb-3">
-  <div class="stat-card" style="border-left:3px solid #10b981;">
-    <div class="stat-label">🏦 Réserve (Épargne)</div>
-    <div class="stat-value {{ 'green' if reserve_bal >= 0 else 'red' }}">{{ reserve_bal|cfa }}</div>
-    <div class="stat-sub">Épargne disponible</div>
-  </div>
-  <div class="stat-card" style="border-left:3px solid #3b82f6;">
-    <div class="stat-label">📅 Budget semaine</div>
-    <div class="stat-value {{ 'blue' if budget_bal >= 0 else 'red' }}">{{ budget_bal|cfa }}</div>
-    <div class="stat-sub">Solde courant</div>
-  </div>
-  <div class="stat-card" style="border-left:3px solid #f59e0b;">
-    <div class="stat-label">☀️ Budget aujourd'hui</div>
-    <div class="stat-value blue">{{ today_real_budget|cfa }}</div>
-    <div class="stat-sub">
-      {% if today_day and today_day['carry'] > 0 %}
-        <span class="green">+{{ today_day["carry"]|cfa }} report hier</span>
-      {% else %}Budget planifié{% endif %}
+<!-- KPIs ─────────────────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
+
+  <!-- Réserve -->
+  <div class="jf-card bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+    <div class="flex items-start justify-between mb-3">
+      <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Réserve</p>
+      <div class="w-9 h-9 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-base">🏦</div>
     </div>
+    <p class="text-2xl font-extrabold {{ 'text-emerald-500' if reserve_bal >= 0 else 'text-red-500' }} leading-tight">{{ reserve_bal|cfa }}</p>
+    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Épargne disponible</p>
   </div>
-  <div class="stat-card" style="border-left:3px solid #ef4444;">
-    <div class="stat-label">💸 Dépenses aujourd'hui</div>
-    <div class="stat-value red">{{ today_spent|cfa }}</div>
-    <div class="stat-sub">Reste : <strong class="{{ 'green' if today_real_budget - today_spent >= 0 else 'red' }}">{% set reste_jour = today_real_budget - today_spent %}{{ reste_jour|cfa }}</strong></div>
+
+  <!-- Budget semaine -->
+  <div class="jf-card bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+    <div class="flex items-start justify-between mb-3">
+      <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Budget semaine</p>
+      <div class="w-9 h-9 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-base">📅</div>
+    </div>
+    <p class="text-2xl font-extrabold {{ 'text-blue-500' if budget_bal >= 0 else 'text-red-500' }} leading-tight">{{ budget_bal|cfa }}</p>
+    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Solde courant</p>
   </div>
+
+  <!-- Aujourd'hui -->
+  <div class="jf-card bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+    <div class="flex items-start justify-between mb-3">
+      <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Aujourd'hui</p>
+      <div class="w-9 h-9 rounded-2xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-base">☀️</div>
+    </div>
+    <p class="text-2xl font-extrabold text-amber-500 leading-tight">{{ today_real_budget|cfa }}</p>
+    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">
+      {% if today_day and today_day['carry'] > 0 %}
+        <span class="text-emerald-500 font-semibold">+{{ today_day["carry"]|cfa }} report</span>
+      {% else %}Budget planifié{% endif %}
+    </p>
+  </div>
+
+  <!-- Dépenses aujourd'hui -->
+  <div class="jf-card bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+    <div class="flex items-start justify-between mb-3">
+      <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Dépensé aujourd'hui</p>
+      <div class="w-9 h-9 rounded-2xl bg-red-50 dark:bg-red-900/30 flex items-center justify-center text-base">💸</div>
+    </div>
+    <p class="text-2xl font-extrabold text-red-500 leading-tight">{{ today_spent|cfa }}</p>
+    {% set reste_j = today_real_budget - today_spent %}
+    <p class="text-xs mt-1">Reste : <strong class="{{ 'text-emerald-500' if reste_j >= 0 else 'text-red-500' }} font-bold">{{ reste_j|cfa }}</strong></p>
+  </div>
+
 </div>
 
-<div class="grid-2">
-  <div>
-    <div class="section-title">⚡ Actions rapides</div>
-    <div class="card mb-2">
-      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem;">
-        <a href="/revenu" class="btn btn-success w-full" style="justify-content:center;">📥 Revenu</a>
-        <a href="/depense" class="btn btn-danger w-full" style="justify-content:center;">📤 Dépense</a>
-        <a href="/budget" class="btn btn-primary w-full" style="justify-content:center;">📅 Budget</a>
+<!-- Main grid ──────────────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-1 xl:grid-cols-5 gap-6">
+
+  <!-- LEFT COLUMN (3/5) -->
+  <div class="xl:col-span-3 space-y-5">
+
+    <!-- Actions rapides -->
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+      <h2 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-4 flex items-center gap-2">⚡ Actions rapides</h2>
+      <div class="grid grid-cols-3 gap-3">
+        <a href="/revenu" class="flex flex-col items-center gap-1.5 py-3.5 px-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-semibold text-sm transition shadow-sm shadow-emerald-200 dark:shadow-none text-center">
+          <span class="text-xl">📥</span> Revenu
+        </a>
+        <a href="/depense" class="flex flex-col items-center gap-1.5 py-3.5 px-2 bg-red-500 hover:bg-red-600 text-white rounded-2xl font-semibold text-sm transition shadow-sm shadow-red-200 dark:shadow-none text-center">
+          <span class="text-xl">📤</span> Dépense
+        </a>
+        <a href="/budget" class="flex flex-col items-center gap-1.5 py-3.5 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-semibold text-sm transition shadow-sm shadow-blue-200 dark:shadow-none text-center">
+          <span class="text-xl">📅</span> Budget
+        </a>
       </div>
+
       {% if reserve_bal > 0 %}
-      <div class="mt-2" style="border-top:1px solid var(--border); padding-top:1rem;">
-        <div style="font-size:0.85rem; color:var(--muted); margin-bottom:0.5rem;">🔄 Transfert Réserve → Budget</div>
-        <form method="POST" action="/transfert" class="flex gap-1">
-          <input type="number" name="montant" step="0.01" min="0.01" max="{{ reserve_bal }}" placeholder="Montant" style="flex:1;" required>
-          <button class="btn btn-primary btn-sm">Transférer</button>
+      <div class="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800">
+        <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 mb-2">🔄 Transfert Réserve → Budget</p>
+        <form method="POST" action="/transfert" class="flex gap-2">
+          <input type="number" name="montant" step="0.01" min="0.01" max="{{ reserve_bal }}" placeholder="Montant FCFA" required
+            class="jf-input flex-1 text-sm">
+          <button class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold text-sm transition flex-shrink-0">Transférer</button>
         </form>
       </div>
       {% endif %}
     </div>
 
+    <!-- Progression semaine -->
     {% if weekly %}
-    <div class="section-title">📅 Semaine en cours</div>
-    <div class="card mb-2">
-      <div class="flex justify-between mb-1">
-        <span class="text-muted" style="font-size:0.875rem;">Progression</span>
-        <span style="font-size:0.875rem; font-weight:600;">{{ weekly_spent|cfa }} / {{ weekly.total_amount|cfa }}</span>
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-bold text-gray-700 dark:text-slate-300 flex items-center gap-2">📅 Semaine en cours</h2>
+        <a href="/budget" class="text-xs text-blue-500 hover:text-blue-700 font-semibold transition">Voir planning →</a>
       </div>
       {% set pct = (weekly_spent / weekly.total_amount * 100) if weekly.total_amount > 0 else 0 %}
-      <div class="progress mb-1">
-        <div class="progress-bar" style="width:{{ [pct,100]|min }}%; background:{{ '#ef4444' if pct > 90 else '#f59e0b' if pct > 70 else '#10b981' }};"></div>
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs text-gray-500 dark:text-slate-400 font-medium">Consommation</span>
+        <span class="text-sm font-bold text-gray-900 dark:text-white">{{ weekly_spent|cfa }} <span class="font-normal text-gray-400">/ {{ weekly.total_amount|cfa }}</span></span>
       </div>
-      <div class="text-muted" style="font-size:0.8rem; display:flex; justify-content:space-between;">
+      <div class="jf-progress mb-2 relative">
+        <div class="jf-progress-bar {% if pct > 90 %}fill-red{% elif pct > 70 %}fill-amber{% else %}fill-blue{% endif %}"
+          style="width:{{ [pct,100]|min }}%">
+          <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[0.65rem] font-bold text-white/90 leading-none">{{ "%.0f"|format(pct) }}%</span>
+        </div>
+      </div>
+      <div class="flex justify-between text-xs text-gray-400 dark:text-slate-500">
         <span>{{ "%.1f"|format(pct) }}% utilisé</span>
-        <span class="{{ 'green' if weekly.total_amount - weekly_spent >= 0 else 'red' }} font-bold">{% set reste_sem = weekly.total_amount - weekly_spent %}Reste {{ reste_sem|cfa }}</span>
+        {% set reste_sem = weekly.total_amount - weekly_spent %}
+        <span class="{{ 'text-emerald-500' if reste_sem >= 0 else 'text-red-500' }} font-bold">Reste {{ reste_sem|cfa }}</span>
       </div>
-      <div class="mt-1"><a href="/budget" style="font-size:0.8rem; color:var(--blue);">Voir planning journalier →</a></div>
     </div>
     {% else %}
-    <div class="card mb-2" style="text-align:center; padding:1.5rem; border-style:dashed;">
-      <p class="text-muted" style="margin-bottom:0.75rem;">Aucun budget pour cette semaine.</p>
-      <a href="/budget" class="btn btn-primary btn-sm">Définir un budget</a>
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-gray-200 dark:border-slate-700 p-6 text-center">
+      <p class="text-sm text-gray-400 dark:text-slate-500 mb-3">Aucun budget pour cette semaine.</p>
+      <a href="/budget" class="inline-block px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition">Définir un budget</a>
     </div>
     {% endif %}
 
+    <!-- Mini-stats mois -->
+    <div class="grid grid-cols-2 gap-4">
+      <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+        <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Revenus ce mois</p>
+        <p class="text-xl font-extrabold text-emerald-500">+{{ monthly_income|cfa }}</p>
+      </div>
+      <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+        <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Dépenses ce mois</p>
+        <p class="text-xl font-extrabold text-red-500">-{{ monthly_expenses|cfa }}</p>
+      </div>
+    </div>
+
+    <!-- Prêts actifs -->
     {% if loans_count > 0 %}
-    <div class="card-sm flex justify-between mb-2" style="border-left:3px solid #f59e0b;">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-amber-200 dark:border-amber-700/40 p-5 flex items-center justify-between">
       <div>
-        <div style="font-size:0.875rem; font-weight:600;">🤝 {{ loans_count }} prêt{{ 's' if loans_count > 1 else '' }} actif{{ 's' if loans_count > 1 else '' }}</div>
-        <div class="text-muted" style="font-size:0.8rem;">{{ loans_total|cfa }} à récupérer</div>
+        <p class="text-sm font-bold text-gray-900 dark:text-white">🤝 {{ loans_count }} prêt{{ 's' if loans_count > 1 else '' }} actif{{ 's' if loans_count > 1 else '' }}</p>
+        <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{{ loans_total|cfa }} à récupérer</p>
       </div>
-      <a href="/prets" class="btn btn-outline btn-sm">Gérer</a>
+      <a href="/prets" class="px-4 py-2 border border-gray-200 dark:border-slate-700 text-sm font-semibold text-gray-600 dark:text-slate-400 rounded-xl hover:border-blue-400 hover:text-blue-600 transition">Gérer →</a>
     </div>
     {% endif %}
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
-      <div class="stat-card">
-        <div class="stat-label">Revenus ce mois</div>
-        <div class="stat-value green" style="font-size:1.2rem;">+{{ monthly_income|cfa }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Dépenses ce mois</div>
-        <div class="stat-value red" style="font-size:1.2rem;">-{{ monthly_expenses|cfa }}</div>
+    <!-- Répartition catégories -->
+    {% if by_cat %}
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+      <h2 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-4 flex items-center gap-2">🗂️ Répartition ce mois</h2>
+      <div class="space-y-3">
+        {% for c in by_cat %}
+        <div>
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="text-sm font-medium text-gray-700 dark:text-slate-300">{{ c.icon }} {{ c.name }}</span>
+            <span class="text-sm font-bold text-gray-900 dark:text-white">{{ c.total|cfa }}</span>
+          </div>
+          <div class="jf-progress-sm">
+            <div class="jf-progress-bar" style="width:{{ (c.total / monthly_expenses * 100) if monthly_expenses > 0 else 0 }}%; background:{{ c.color }};"></div>
+          </div>
+        </div>
+        {% endfor %}
       </div>
     </div>
+    {% endif %}
+
   </div>
 
-  <div>
-    <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
-      <span>🕒 Dernières opérations</span>
-      <a href="/historique" style="font-size:0.8rem; color:var(--muted);">Voir tout →</a>
-    </div>
-    <div class="card mb-2" style="padding:0; overflow:hidden;">
+  <!-- RIGHT COLUMN (2/5) -->
+  <div class="xl:col-span-2 space-y-5">
+
+    <!-- Dernières opérations -->
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 overflow-hidden">
+      <div class="flex items-center justify-between px-5 pt-5 pb-3">
+        <h2 class="text-sm font-bold text-gray-700 dark:text-slate-300 flex items-center gap-2">🕒 Dernières opérations</h2>
+        <a href="/historique" class="text-xs text-blue-500 hover:text-blue-700 font-semibold transition">Tout voir →</a>
+      </div>
+
       {% if recent %}
-      <table>
-        <tbody>
+      <div class="divide-y divide-gray-50 dark:divide-slate-800">
         {% for t in recent %}
-        <tr>
-          <td style="width:36px; text-align:center;">
+        <div class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition">
+          <div class="w-9 h-9 rounded-2xl bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-base flex-shrink-0">
             {% if t.type in ('expense','expense_reserve') %}💸
             {% elif t.type == 'income' %}📥
             {% elif t.type == 'allocation' %}↗️
@@ -121,41 +191,28 @@
             {% elif t.type == 'repayment' %}💵
             {% elif t.type == 'week_close' %}🔒
             {% else %}↔️{% endif %}
-          </td>
-          <td>
-            <div style="font-size:0.875rem;">{{ t.description or '—' }}</div>
-            <div class="text-muted" style="font-size:0.75rem;">{{ t.date }}</div>
-          </td>
-          <td class="text-right font-bold" style="white-space:nowrap;">
-            {% if t.type in ('expense','expense_reserve') %}<span class="red">-{{ t.amount|cfa }}</span>
-            {% elif t.type in ('income','week_close','repayment') and t.destination in ('reserve','budget','income') %}<span class="green">+{{ t.amount|cfa }}</span>
-            {% else %}<span class="blue">{{ t.amount|cfa }}</span>{% endif %}
-          </td>
-        </tr>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 truncate">{{ t.description or '—' }}</p>
+            <p class="text-xs text-gray-400 dark:text-slate-500">{{ t.date }}</p>
+          </div>
+          <div class="flex-shrink-0 text-right">
+            {% if t.type in ('expense','expense_reserve') %}
+              <span class="text-sm font-bold text-red-500">-{{ t.amount|cfa }}</span>
+            {% elif t.type in ('income','week_close','repayment') and t.destination in ('reserve','budget','income') %}
+              <span class="text-sm font-bold text-emerald-500">+{{ t.amount|cfa }}</span>
+            {% else %}
+              <span class="text-sm font-bold text-blue-500">{{ t.amount|cfa }}</span>
+            {% endif %}
+          </div>
+        </div>
         {% endfor %}
-        </tbody>
-      </table>
+      </div>
       {% else %}
-      <div style="padding:2rem; text-align:center; color:var(--muted);">Aucune transaction encore.</div>
+      <div class="px-5 pb-8 pt-4 text-center text-sm text-gray-400 dark:text-slate-500">Aucune transaction encore.</div>
       {% endif %}
     </div>
 
-    {% if by_cat %}
-    <div class="section-title">🗂️ Répartition ce mois</div>
-    <div class="card" style="padding:1rem;">
-      {% for c in by_cat %}
-      <div style="margin-bottom:0.75rem;">
-        <div class="flex justify-between" style="font-size:0.85rem; margin-bottom:4px;">
-          <span>{{ c.icon }} {{ c.name }}</span>
-          <span class="font-bold">{{ c.total|cfa }}</span>
-        </div>
-        <div class="progress">
-          <div class="progress-bar" style="width:{{ (c.total / monthly_expenses * 100) if monthly_expenses > 0 else 0 }}%; background:{{ c.color }};"></div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
   </div>
 </div>
 
@@ -164,14 +221,17 @@ fetch('/api/alertes')
   .then(r => r.json())
   .then(alertes => {
     if (!alertes.length) return;
-    const colors = { danger: '#7f1d1d', warning: '#78350f', info: '#1e3a5f' };
-    const textColors = { danger: '#fca5a5', warning: '#fcd34d', info: '#93c5fd' };
-    const borders = { danger: '#991b1b', warning: '#92400e', info: '#1e40af' };
     const container = document.getElementById('alertes-container');
+    const styles = {
+      danger:  { bg:'bg-red-50 dark:bg-red-900/20',    border:'border-red-200 dark:border-red-700/50',    text:'text-red-700 dark:text-red-300'    },
+      warning: { bg:'bg-amber-50 dark:bg-amber-900/20', border:'border-amber-200 dark:border-amber-700/50', text:'text-amber-700 dark:text-amber-300' },
+      info:    { bg:'bg-blue-50 dark:bg-blue-900/20',   border:'border-blue-200 dark:border-blue-700/50',   text:'text-blue-700 dark:text-blue-300'   },
+    };
     alertes.forEach(a => {
+      const s = styles[a.level] || styles.info;
       const div = document.createElement('div');
-      div.style.cssText = `background:${colors[a.level]||colors.info}; border:1px solid ${borders[a.level]||borders.info}; color:${textColors[a.level]||textColors.info}; padding:0.75rem 1.25rem; border-radius:8px; margin-bottom:0.5rem; font-size:0.875rem; display:flex; justify-content:space-between; align-items:center;`;
-      div.innerHTML = `<span>${a.msg}</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:inherit;cursor:pointer;font-size:1rem;opacity:0.7;padding:0 0 0 1rem;">✕</button>`;
+      div.className = `px-4 py-3 rounded-2xl text-sm font-medium flex items-center justify-between border ${s.bg} ${s.border} ${s.text}`;
+      div.innerHTML = `<span>⚠️ ${a.msg}</span><button onclick="this.parentElement.remove()" class="ml-4 opacity-50 hover:opacity-100 transition">✕</button>`;
       container.appendChild(div);
     });
   });

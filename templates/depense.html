@@ -1,150 +1,130 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="mb-3">
-  <h1 style="font-size:1.5rem; font-weight:700;">📤 Saisir une dépense</h1>
+
+<div class="mb-7">
+  <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">📤 Saisir une dépense</h1>
+  <p class="text-sm text-gray-400 dark:text-slate-500 mt-0.5">Enregistrez une dépense manuelle</p>
 </div>
 
-<div style="max-width:540px;">
+<div class="max-w-lg">
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-6">
+    <form method="POST" class="space-y-4">
 
-  <div class="card">
-    <form method="POST">
-
-      <div class="form-group">
-        <label>Montant (FCFA)</label>
-        <input type="number" name="montant" id="montant" step="1" min="1" placeholder="Ex: 5 000" required autofocus
-          oninput="updatePreview()">
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Montant (FCFA)</label>
+        <input type="number" name="montant" id="montant" step="1" min="1" placeholder="Ex: 5 000"
+          required autofocus oninput="updatePreview()" class="jf-input text-base font-bold">
       </div>
 
-      <div class="form-group">
-        <label>Description</label>
-        <input type="text" name="description" placeholder="Ex: Taxi, Courses, Médicaments...">
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Description</label>
+        <input type="text" name="description" placeholder="Ex: Taxi, Courses, Médicaments…" class="jf-input">
       </div>
 
-      <div class="form-group">
-        <label>Catégorie</label>
-        <select name="category_id">
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Catégorie</label>
+        <select name="category_id" class="jf-input">
           {% for c in categories %}
           <option value="{{ c.id }}">{{ c.icon }} {{ c.name }}</option>
           {% endfor %}
         </select>
       </div>
 
-      <!-- SÉLECTEUR DE SOURCE -->
-      <div class="form-group">
-        <label>Source de la dépense</label>
-        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.5rem; margin-top:0.25rem;">
-
-          <label id="btn-auto" onclick="setSource('auto')"
-            style="cursor:pointer; padding:0.75rem 0.5rem; border-radius:var(--border-radius-sm); border:2px solid var(--blue); background:rgba(59,130,246,0.1); text-align:center; font-size:0.8rem; color:var(--text);">
-            <input type="radio" name="source" value="auto" checked style="display:none;">
-            <div style="font-size:1.1rem; margin-bottom:3px;">🔄</div>
-            <div style="font-weight:500;">Automatique</div>
-            <div style="font-size:0.72rem; color:var(--muted); margin-top:2px;">Budget → Réserve</div>
+      <!-- Source -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-2">Source de la dépense</label>
+        <div class="grid grid-cols-3 gap-2">
+          <label id="btn-auto" onclick="setSource('auto')" class="cursor-pointer p-3 rounded-2xl border-2 border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-center transition">
+            <input type="radio" name="source" value="auto" checked style="display:none">
+            <div class="text-xl mb-1">🔄</div>
+            <div class="text-xs font-bold text-gray-900 dark:text-white">Auto</div>
+            <div class="text-[0.65rem] text-gray-400 dark:text-slate-500 mt-0.5">Budget→Réserve</div>
           </label>
-
-          <label id="btn-budget" onclick="setSource('budget')"
-            style="cursor:pointer; padding:0.75rem 0.5rem; border-radius:var(--border-radius-sm); border:1px solid var(--border); background:transparent; text-align:center; font-size:0.8rem; color:var(--muted);">
-            <input type="radio" name="source" value="budget" style="display:none;">
-            <div style="font-size:1.1rem; margin-bottom:3px;">📅</div>
-            <div style="font-weight:500;">Budget semaine</div>
-            <div style="font-size:0.72rem; margin-top:2px;">{{ budget_bal|cfa }}</div>
+          <label id="btn-budget" onclick="setSource('budget')" class="cursor-pointer p-3 rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-center transition">
+            <input type="radio" name="source" value="budget" style="display:none">
+            <div class="text-xl mb-1">📅</div>
+            <div class="text-xs font-bold text-gray-400 dark:text-slate-500">Budget</div>
+            <div class="text-[0.65rem] text-gray-400 dark:text-slate-500 mt-0.5">{{ budget_bal|cfa }}</div>
           </label>
-
-          <label id="btn-reserve" onclick="setSource('reserve')"
-            style="cursor:pointer; padding:0.75rem 0.5rem; border-radius:var(--border-radius-sm); border:1px solid var(--border); background:transparent; text-align:center; font-size:0.8rem; color:var(--muted);">
-            <input type="radio" name="source" value="reserve" style="display:none;">
-            <div style="font-size:1.1rem; margin-bottom:3px;">🏦</div>
-            <div style="font-weight:500;">Réserve</div>
-            <div style="font-size:0.72rem; margin-top:2px;">{{ reserve_bal|cfa }}</div>
+          <label id="btn-reserve" onclick="setSource('reserve')" class="cursor-pointer p-3 rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-center transition">
+            <input type="radio" name="source" value="reserve" style="display:none">
+            <div class="text-xl mb-1">🏦</div>
+            <div class="text-xs font-bold text-gray-400 dark:text-slate-500">Réserve</div>
+            <div class="text-[0.65rem] text-gray-400 dark:text-slate-500 mt-0.5">{{ reserve_bal|cfa }}</div>
           </label>
-
         </div>
       </div>
 
-      <!-- PRÉVISUALISATION DYNAMIQUE -->
-      <div id="preview-box"
-        style="display:none; margin-bottom:1rem; padding:0.875rem; background:var(--surface2); border-radius:var(--border-radius-sm); font-size:0.85rem;">
+      <!-- Prévisualisation -->
+      <div id="preview-box" style="display:none" class="px-4 py-3.5 bg-gray-50 dark:bg-slate-800 rounded-2xl text-sm">
         <div id="preview-content"></div>
       </div>
 
-      <div class="form-group">
-        <label>Date</label>
-        <input type="date" name="date" value="{{ today }}">
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Date</label>
+        <input type="date" name="date" value="{{ today }}" class="jf-input">
       </div>
 
-      <button class="btn btn-danger w-full">💸 Enregistrer la dépense</button>
+      <button class="w-full py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-2xl text-sm transition shadow-sm shadow-red-200 dark:shadow-none">💸 Enregistrer la dépense</button>
     </form>
   </div>
 </div>
 
+<!-- Jinja2 data passed via data attributes to avoid JS parse errors -->
+<span id="jf-depense-data" data-budget="{{ budget_bal }}" data-reserve="{{ reserve_bal }}" style="display:none"></span>
+
 <script>
-  const budgetBal = {{ budget_bal | tojson }};
-  const reserveBal = {{ reserve_bal | tojson }};
-  let currentSource = 'auto';
+const _d = document.getElementById('jf-depense-data').dataset;
+const budgetBal  = parseFloat(_d.budget)  || 0;
+const reserveBal = parseFloat(_d.reserve) || 0;
+let currentSource = 'auto';
 
-  function fmt(n) {
-    return Math.round(n).toLocaleString('fr-FR') + ' FCFA';
-  }
+function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA'; }
 
-  function setSource(s) {
-    currentSource = s;
+function setSource(s) {
+  currentSource = s;
+  const inactive = 'cursor-pointer p-3 rounded-2xl text-center transition border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900';
+  const activeCls = {
+    'auto':    'cursor-pointer p-3 rounded-2xl text-center transition border-2 border-blue-500 bg-blue-50',
+    'budget':  'cursor-pointer p-3 rounded-2xl text-center transition border-2 border-emerald-500 bg-emerald-50',
+    'reserve': 'cursor-pointer p-3 rounded-2xl text-center transition border-2 border-amber-500 bg-amber-50',
+  };
+  ['auto','budget','reserve'].forEach(k => {
+    const el = document.getElementById('btn-' + k);
+    el.className = k === s ? activeCls[k] : inactive;
+    const titleEl = el.querySelector('.text-xs.font-bold');
+    if (titleEl) titleEl.className = 'text-xs font-bold ' + (k === s ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-slate-500');
+  });
+  document.querySelector('input[name=source][value="' + s + '"]').checked = true;
+  updatePreview();
+}
 
-    const btns = { auto: 'btn-auto', budget: 'btn-budget', reserve: 'btn-reserve' };
-    const colors = { auto: '#3b82f6', budget: '#10b981', reserve: '#f59e0b' };
-
-    Object.keys(btns).forEach(key => {
-      const el = document.getElementById(btns[key]);
-      el.style.border = '1px solid var(--border)';
-      el.style.background = 'transparent';
-      el.style.color = 'var(--muted)';
-    });
-
-    const active = document.getElementById(btns[s]);
-    active.style.border = `2px solid ${colors[s]}`;
-    active.style.background = `rgba(${s === 'auto' ? '59,130,246' : s === 'budget' ? '16,185,129' : '245,158,11'}, 0.1)`;
-    active.style.color = 'var(--text)';
-
-    document.querySelector(`input[name=source][value=${s}]`).checked = true;
-
-    updatePreview();
-  }
-
-  function updatePreview() {
-    const m = parseFloat(document.getElementById('montant').value) || 0;
-    const box = document.getElementById('preview-box');
-    const cnt = document.getElementById('preview-content');
-
-    if (m <= 0) { box.style.display = 'none'; return; }
-
-    box.style.display = 'block';
-    let html = '';
-
-    if (currentSource === 'budget') {
-      if (m <= budgetBal) {
-        html = `<span style="color:#10b981;">✅ Pris sur le budget semaine : <strong>${fmt(m)}</strong></span>`;
-      } else {
-        html = `<span style="color:#ef4444;">⚠️ Budget semaine insuffisant. Disponible : <strong>${fmt(budgetBal)}</strong><br>Manque : <strong>${fmt(m - budgetBal)}</strong> — choisissez "Automatique" ou "Réserve".</span>`;
-      }
-    } else if (currentSource === 'reserve') {
-      if (m <= reserveBal) {
-        html = `<span style="color:#f59e0b;">✅ Pris sur la réserve : <strong>${fmt(m)}</strong></span>`;
-      } else {
-        html = `<span style="color:#ef4444;">⚠️ Réserve insuffisante. Disponible : <strong>${fmt(reserveBal)}</strong><br>Manque : <strong>${fmt(m - reserveBal)}</strong> — choisissez "Automatique" ou "Budget semaine".</span>`;
-      }
+function updatePreview() {
+  const m   = parseFloat(document.getElementById('montant').value) || 0;
+  const box = document.getElementById('preview-box');
+  const cnt = document.getElementById('preview-content');
+  if (m <= 0) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  let html = '';
+  if (currentSource === 'budget') {
+    html = m <= budgetBal
+      ? `<span class="text-emerald-500 font-semibold">✅ Pris sur le budget semaine : ${fmt(m)}</span>`
+      : `<span class="text-red-500 font-semibold">⚠️ Budget insuffisant — disponible : ${fmt(budgetBal)}</span>`;
+  } else if (currentSource === 'reserve') {
+    html = m <= reserveBal
+      ? `<span class="text-amber-500 font-semibold">✅ Pris sur la réserve : ${fmt(m)}</span>`
+      : `<span class="text-red-500 font-semibold">⚠️ Réserve insuffisante — disponible : ${fmt(reserveBal)}</span>`;
+  } else {
+    if (m <= budgetBal) {
+      html = `<span class="text-blue-500 font-semibold">✅ Entièrement sur le budget semaine : ${fmt(m)}</span>`;
+    } else if (m <= budgetBal + reserveBal) {
+      const fromR = m - budgetBal;
+      html = `<div class="text-blue-500 font-semibold mb-1">↳ Budget semaine : ${fmt(budgetBal)}</div><div class="text-amber-500 font-semibold">↳ Réserve (complément) : ${fmt(fromR)}</div>`;
     } else {
-      if (m <= budgetBal) {
-        html = `<span style="color:#3b82f6;">✅ Entièrement pris sur le budget semaine : <strong>${fmt(m)}</strong></span>`;
-      } else if (m <= budgetBal + reserveBal) {
-        const fromBudget = budgetBal;
-        const fromReserve = m - fromBudget;
-        html = `<div style="color:#3b82f6; margin-bottom:4px;">↳ Budget semaine : <strong>${fmt(fromBudget)}</strong></div>`;
-        html += `<div style="color:#f59e0b;">↳ Réserve (complément) : <strong>${fmt(fromReserve)}</strong></div>`;
-      } else {
-        html = `<span style="color:#ef4444;">⚠️ Montant trop élevé. Maximum disponible : <strong>${fmt(budgetBal + reserveBal)}</strong></span>`;
-      }
+      html = `<span class="text-red-500 font-semibold">⚠️ Trop élevé. Maximum disponible : ${fmt(budgetBal + reserveBal)}</span>`;
     }
-
-    cnt.innerHTML = html;
   }
+  cnt.innerHTML = html;
+}
 </script>
 {% endblock %}

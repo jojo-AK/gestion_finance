@@ -1,206 +1,255 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="mb-3" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+
+<!-- Header -->
+<div class="flex items-start justify-between flex-wrap gap-3 mb-7">
   <div>
-    <h1 style="font-size:1.5rem; font-weight:700;">📅 Budget hebdomadaire</h1>
-    <p class="text-muted">Semaine du {{ week_start.strftime('%d/%m/%Y') }}
-      {% if weekly and weekly.closed %}<span class="badge badge-gray" style="margin-left:6px;">🔒 Clôturée</span>{% endif %}
-    </p>
+    <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
+      📅 Budget hebdomadaire
+      {% if weekly and weekly.closed %}
+      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400">🔒 Clôturée</span>
+      {% endif %}
+    </h1>
+    <p class="text-sm text-gray-400 dark:text-slate-500 mt-0.5">Semaine du {{ week_start.strftime('%d/%m/%Y') }}</p>
   </div>
   <!-- Navigation semaines -->
-  <div style="display:flex; align-items:center; gap:0.5rem;">
-    <a href="/budget?week={{ prev_week }}" class="btn btn-outline btn-sm">← Préc.</a>
+  <div class="flex items-center gap-2 flex-wrap">
+    <a href="/budget?week={{ prev_week }}" class="px-4 py-2 border border-gray-200 dark:border-slate-700 text-sm font-semibold text-gray-600 dark:text-slate-400 rounded-xl hover:border-blue-400 hover:text-blue-600 transition">← Préc.</a>
     {% if not is_current_week %}
-    <a href="/budget" class="btn btn-primary btn-sm">Semaine actuelle</a>
+    <a href="/budget" class="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition shadow-sm shadow-blue-200 dark:shadow-none">Sem. actuelle</a>
     {% endif %}
     {% if next_week <= today %}
-    <a href="/budget?week={{ next_week }}" class="btn btn-outline btn-sm">Suiv. →</a>
+    <a href="/budget?week={{ next_week }}" class="px-4 py-2 border border-gray-200 dark:border-slate-700 text-sm font-semibold text-gray-600 dark:text-slate-400 rounded-xl hover:border-blue-400 hover:text-blue-600 transition">Suiv. →</a>
     {% endif %}
   </div>
 </div>
 
-<div class="grid-2">
-  <div>
+<div class="grid grid-cols-1 xl:grid-cols-5 gap-6">
+
+  <!-- LEFT: Formulaires ─────────────────────────────────────────────────── -->
+  <div class="xl:col-span-2 space-y-5">
+
+    <!-- Formulaire budget semaine -->
     {% if is_current_week and (not weekly or not weekly.closed) %}
-    <div class="card mb-2">
-      <div class="section-title">{{ 'Modifier le budget' if weekly else 'Définir le budget de la semaine' }}</div>
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+      <h2 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-4">{{ 'Modifier le budget' if weekly else 'Définir le budget de la semaine' }}</h2>
       <form method="POST">
-        <div class="form-group">
-          <label>Montant total pour la semaine (FCFA)</label>
+        <div class="mb-4">
+          <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Montant total (FCFA)</label>
           <input type="number" name="montant" step="1" min="1"
             value="{{ weekly.total_amount if weekly else '' }}"
-            placeholder="Ex: 50000" required autofocus
-            oninput="document.getElementById('daily-preview').style.display=this.value>0?'block':'none'; document.getElementById('daily-amt').textContent=Math.round(parseFloat(this.value)/7).toLocaleString('fr-FR')+' FCFA/jour'">
+            placeholder="Ex: 50 000" required autofocus
+            oninput="document.getElementById('daily-preview').style.display=this.value>0?'flex':'none'; document.getElementById('daily-amt').textContent=Math.round(parseFloat(this.value)/7).toLocaleString('fr-FR')+' FCFA/jour';"
+            class="jf-input">
         </div>
-        <div id="daily-preview" style="display:none; margin-bottom:1rem; padding:0.75rem; background:var(--surface2); border-radius:8px; font-size:0.85rem; color:var(--muted);">
-          Répartition automatique : <strong style="color:var(--blue);" id="daily-amt">—</strong> × 7 jours
+        <div id="daily-preview" style="display:none" class="flex items-center gap-2 mb-4 px-3.5 py-2.5 bg-blue-50 dark:bg-blue-900/20 rounded-xl text-sm text-blue-600 dark:text-blue-400">
+          <span>📊</span>
+          <span>Répartition : <strong id="daily-amt">—</strong> × 7 jours</span>
         </div>
-        <button class="btn btn-primary w-full">✅ Enregistrer</button>
+        <button class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm transition shadow-sm shadow-blue-200 dark:shadow-none">✅ Enregistrer</button>
       </form>
     </div>
     {% endif %}
 
+    <!-- Clôturer -->
     {% if weekly and not weekly.closed and is_current_week %}
-    <div class="card-sm mb-2" style="border-left:3px solid #10b981;">
-      <div style="font-size:0.875rem; margin-bottom:0.5rem; font-weight:500;">🔒 Clôturer la semaine</div>
-      <div class="text-muted" style="font-size:0.8rem; margin-bottom:0.75rem;">Le reste du budget sera transféré vers la réserve.</div>
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-emerald-200 dark:border-emerald-700/40 p-5">
+      <h3 class="text-sm font-bold text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-2">🔒 Clôturer la semaine</h3>
+      <p class="text-xs text-gray-400 dark:text-slate-500 mb-3">Le reste du budget sera transféré vers la réserve.</p>
       <form method="POST" action="/budget/cloturer">
         <input type="hidden" name="week_start" value="{{ week_start }}">
-        <button class="btn btn-success btn-sm w-full"
-          onclick="return confirm('Clôturer la semaine et transférer le reste vers la réserve ?')">
+        <button class="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl text-sm transition"
+          onclick="return confirm('Clôturer la semaine et transférer le reste ?')">
           Clôturer et transférer le reste
         </button>
       </form>
     </div>
     {% endif %}
 
-    <!-- Modifier budget d'un jour -->
+    <!-- Modifier allocation d'un jour -->
     {% if weekly and not weekly.closed and is_current_week %}
-    <div class="card mt-2" style="padding:1rem;">
-      <div style="font-size:0.875rem; font-weight:500; margin-bottom:0.75rem;">✏️ Modifier le budget d'un jour</div>
-      <form method="POST" action="/budget/modifier_jour" class="flex gap-1" style="flex-wrap:wrap;">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+      <h3 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-3">✏️ Modifier l'allocation d'un jour</h3>
+      <form method="POST" action="/budget/modifier_jour" class="space-y-3">
         <input type="hidden" name="week_start" value="{{ week_start }}">
-        <select name="date" style="flex:1; min-width:120px;">
-          {% set jours = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'] %}
+        {% set jours = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'] %}
+        <select name="date" class="jf-input text-sm">
           {% for d in daily_list %}
-          <option value="{{ d.date }}">{{ jours[loop.index0] }} {{ d.date[8:] }}/{{ d.date[5:7] }} ({{ d.planned|cfa }})</option>
+          <option value="{{ d.date }}">{{ jours[loop.index0] }} {{ d.date[8:] }}/{{ d.date[5:7] }} — {{ d.planned|cfa }}</option>
           {% endfor %}
         </select>
-        <input type="number" name="planned" step="1" min="0" placeholder="Nouveau budget (FCFA)" style="flex:1; min-width:140px;">
-        <button class="btn btn-primary btn-sm">Modifier</button>
+        <div class="flex gap-2">
+          <input type="number" name="planned" step="1" min="0" placeholder="Nouveau montant FCFA"
+            class="jf-input flex-1 text-sm">
+          <button class="px-4 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm hover:bg-blue-700 transition">OK</button>
+        </div>
       </form>
     </div>
     {% endif %}
 
-    <!-- Historique des semaines -->
+    <!-- Semaines précédentes -->
     {% if past_weeks %}
-    <div class="card mt-2" style="padding:1rem;">
-      <div style="font-size:0.875rem; font-weight:500; margin-bottom:0.75rem;">📆 Semaines précédentes</div>
-      {% for pw in past_weeks %}
-      <a href="/budget?week={{ pw.week_start }}"
-         style="display:flex; justify-content:space-between; align-items:center; padding:0.4rem 0; border-bottom:1px solid var(--border); text-decoration:none; font-size:0.82rem; color:var(--text);">
-        <span>Sem. {{ pw.week_start }}
-          {% if pw.closed %}<span class="badge badge-gray" style="font-size:0.65rem;">🔒</span>{% endif %}
-        </span>
-        <span class="text-muted">{{ pw.total_amount|cfa }}</span>
-      </a>
-      {% endfor %}
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+      <h3 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-3">📆 Semaines précédentes</h3>
+      <div class="space-y-1">
+        {% for pw in past_weeks %}
+        <a href="/budget?week={{ pw.week_start }}"
+          class="flex justify-between items-center px-3 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-800 transition text-sm">
+          <span class="text-gray-700 dark:text-slate-300 font-medium flex items-center gap-1.5">
+            {{ pw.week_start }}
+            {% if pw.closed %}<span class="text-gray-400 dark:text-slate-500 text-xs">🔒</span>{% endif %}
+          </span>
+          <span class="text-gray-400 dark:text-slate-500 text-xs font-medium">{{ pw.total_amount|cfa }}</span>
+        </a>
+        {% endfor %}
+      </div>
     </div>
     {% endif %}
+
   </div>
 
-  <div>
-    {% if weekly and daily_list %}
-    <div class="section-title">Planning journalier</div>
+  <!-- RIGHT: Planning journalier ─────────────────────────────────────────── -->
+  <div class="xl:col-span-3">
 
+    {% if weekly and daily_list %}
+
+    <!-- Mini KPIs semaine -->
     {% set total_depense = daily_list | sum(attribute='spent') %}
     {% set total_reste = weekly.total_amount - total_depense %}
-    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.5rem; margin-bottom:1rem;">
-      <div class="stat-card" style="padding:0.75rem;">
-        <div class="stat-label">Budget semaine</div>
-        <div style="font-size:1rem; font-weight:700; color:var(--blue);">{{ weekly.total_amount|cfa }}</div>
+    <div class="grid grid-cols-3 gap-3 mb-5">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 text-center">
+        <p class="text-xs text-gray-400 dark:text-slate-500 mb-1">Budget semaine</p>
+        <p class="text-base font-extrabold text-blue-500">{{ weekly.total_amount|cfa }}</p>
       </div>
-      <div class="stat-card" style="padding:0.75rem;">
-        <div class="stat-label">Dépensé</div>
-        <div style="font-size:1rem; font-weight:700;" class="red">{{ total_depense|cfa }}</div>
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 text-center">
+        <p class="text-xs text-gray-400 dark:text-slate-500 mb-1">Dépensé</p>
+        <p class="text-base font-extrabold text-red-500">{{ total_depense|cfa }}</p>
       </div>
-      <div class="stat-card" style="padding:0.75rem;">
-        <div class="stat-label">Reste semaine</div>
-        <div style="font-size:1rem; font-weight:700;" class="{{ 'green' if total_reste >= 0 else 'red' }}">{{ total_reste|cfa }}</div>
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 text-center">
+        <p class="text-xs text-gray-400 dark:text-slate-500 mb-1">Reste semaine</p>
+        <p class="text-base font-extrabold {{ 'text-emerald-500' if total_reste >= 0 else 'text-red-500' }}">{{ total_reste|cfa }}</p>
       </div>
     </div>
 
+    <!-- Cartes des jours -->
     {% set jours_full = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'] %}
-    {% set jours = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'] %}
-    {% for d in daily_list %}
-    {% set est_passe = d.date < today %}
-    {% set est_auj   = d.date == today %}
-    {% set est_futur = d.date > today %}
-    {% set pct = (d.spent / d.real * 100) if d.real > 0 else 0 %}
-    {% set pct_clamped = [pct, 100] | min %}
+    {% set jours_court = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'] %}
+    <div class="space-y-3">
+      {% for d in daily_list %}
+      {% set est_passe = d.date < today %}
+      {% set est_auj   = d.date == today %}
+      {% set est_futur = d.date > today %}
+      {% set pct = (d.spent / d.real * 100) if d.real > 0 else 0 %}
+      {% set pct_clamped = [pct, 100] | min %}
 
-    <div class="card mb-2" style="
-      border-left: 3px solid {{ '#ef4444' if pct > 100 else '#f59e0b' if pct > 80 else '#10b981' if est_passe or est_auj else '#475569' }};
-      opacity: {{ '1' if est_auj or est_futur else '0.85' }};">
+      <div class="bg-white dark:bg-slate-900 rounded-3xl border overflow-hidden
+        {% if est_auj %}border-2 border-blue-500 shadow-md shadow-blue-100 dark:shadow-blue-900/30
+        {% elif est_futur %}border-dashed border-gray-200 dark:border-slate-700
+        {% else %}border-gray-100 dark:border-slate-800{% endif %}
+        {% if est_passe %}opacity-70{% endif %}">
 
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
-        <div>
-          <div style="font-weight:600; font-size:0.95rem; display:flex; align-items:center; gap:0.5rem;">
-            {{ jours_full[loop.index0] }}
-            {% if est_auj %}<span class="badge badge-blue" style="font-size:0.65rem;">Aujourd'hui</span>
-            {% else %}<span style="font-size:0.7rem; color:var(--muted);">{{ d.date[8:] }}/{{ d.date[5:7] }}</span>{% endif %}
+        <div class="p-5">
+          <!-- Jour header -->
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              {% if est_passe %}
+              <div class="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-sm">✓</div>
+              {% elif est_auj %}
+              <div class="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center relative">
+                <span class="w-2 h-2 rounded-full bg-white live-dot"></span>
+              </div>
+              {% else %}
+              <div class="w-8 h-8 rounded-xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-xs text-gray-400">{{ d.date[8:] }}</div>
+              {% endif %}
+              <div>
+                <div class="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-2">
+                  {{ jours_full[loop.index0] }}
+                  {% if est_auj %}<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[0.65rem] font-bold bg-blue-500 text-white">LIVE</span>{% endif %}
+                  {% if est_futur %}<span class="text-xs text-gray-400 dark:text-slate-500 font-normal">{{ d.date[8:] }}/{{ d.date[5:7] }}</span>{% endif %}
+                </div>
+              </div>
+            </div>
+            <!-- Reste du jour -->
+            <div class="text-right">
+              <p class="text-[0.65rem] text-gray-400 dark:text-slate-500 leading-none mb-0.5">Reste</p>
+              <p class="text-lg font-extrabold {{ 'text-emerald-500' if d.reste >= 0 else 'text-red-500' }}">{{ d.reste|cfa }}</p>
+            </div>
           </div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:0.72rem; color:var(--muted);">Reste</div>
-          <div style="font-size:1.1rem; font-weight:700;" class="{{ 'green' if d.reste >= 0 else 'red' }}">{{ d.reste|cfa }}</div>
-        </div>
-      </div>
 
-      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.5rem; margin-bottom:0.75rem; font-size:0.78rem;">
-        <div style="background:var(--surface2); border-radius:6px; padding:0.4rem 0.6rem;">
-          <div style="color:var(--muted); margin-bottom:2px;">Planifié</div>
-          <div style="font-weight:600;">{{ d.planned|cfa }}</div>
-        </div>
-        <div style="background:var(--surface2); border-radius:6px; padding:0.4rem 0.6rem;">
-          <div style="color:var(--muted); margin-bottom:2px;">Report</div>
-          <div style="font-weight:600;" class="{{ 'green' if d.carry > 0 else 'red' if d.carry < 0 else '' }}">
-            {% if d.carry > 0 %}+{{ d.carry|cfa }}{% elif d.carry < 0 %}-{{ (d.carry * -1)|cfa }}{% else %}—{% endif %}
+          <!-- Mini stats jour -->
+          <div class="grid grid-cols-3 gap-2 mb-4">
+            <div class="bg-gray-50 dark:bg-slate-800 rounded-xl p-2.5 text-center">
+              <p class="text-[0.65rem] text-gray-400 dark:text-slate-500 mb-0.5">Planifié</p>
+              <p class="text-xs font-bold text-gray-700 dark:text-slate-300">{{ d.planned|cfa }}</p>
+            </div>
+            <div class="bg-gray-50 dark:bg-slate-800 rounded-xl p-2.5 text-center">
+              <p class="text-[0.65rem] text-gray-400 dark:text-slate-500 mb-0.5">Report</p>
+              <p class="text-xs font-bold {{ 'text-emerald-500' if d.carry > 0 else 'text-red-400' if d.carry < 0 else 'text-gray-400' }}">
+                {% if d.carry > 0 %}+{{ d.carry|cfa }}{% elif d.carry < 0 %}−{{ (d.carry * -1)|cfa }}{% else %}—{% endif %}
+              </p>
+            </div>
+            <div class="bg-gray-50 dark:bg-slate-800 rounded-xl p-2.5 text-center">
+              <p class="text-[0.65rem] text-gray-400 dark:text-slate-500 mb-0.5">Disponible</p>
+              <p class="text-xs font-bold text-blue-500">{{ d.real|cfa }}</p>
+            </div>
           </div>
-        </div>
-        <div style="background:var(--surface2); border-radius:6px; padding:0.4rem 0.6rem;">
-          <div style="color:var(--muted); margin-bottom:2px;">Disponible</div>
-          <div style="font-weight:600; color:var(--blue);">{{ d.real|cfa }}</div>
+
+          <!-- Barre de progression (passé + aujourd'hui) -->
+          {% if est_passe or est_auj %}
+          <div class="mb-3">
+            <div class="flex justify-between items-center mb-1.5">
+              <span class="text-xs text-gray-500 dark:text-slate-400">Dépensé : <strong class="{{ 'text-red-500' if d.spent > 0 else 'text-gray-400' }}">{{ d.spent|cfa }}</strong></span>
+              <span class="text-xs font-bold {{ 'text-red-500' if pct > 100 else 'text-amber-500' if pct > 80 else 'text-emerald-500' }}">{{ "%.0f"|format(pct) }}%</span>
+            </div>
+            <div class="jf-progress">
+              <div class="jf-progress-bar {% if pct > 100 %}fill-red{% elif pct > 80 %}fill-amber{% else %}fill-green{% endif %}"
+                style="width:{{ pct_clamped }}%"></div>
+            </div>
+            {% if pct > 100 %}
+            <p class="text-xs text-red-500 mt-1 font-medium">⚠️ Dépassement : {{ (d.spent - d.real)|cfa }}</p>
+            {% endif %}
+          </div>
+          {% else %}
+          <p class="text-xs text-gray-400 dark:text-slate-500 italic mb-3">Jour à venir — {{ d.real|cfa }} disponibles</p>
+          {% endif %}
+
+          <!-- Note du jour -->
+          {% if d.note %}
+          <div class="flex items-start gap-2 mb-3 px-3 py-2 bg-gray-50 dark:bg-slate-800 rounded-xl text-xs text-gray-500 dark:text-slate-400">
+            <span>📝</span><span>{{ d.note }}</span>
+          </div>
+          {% endif %}
+
+          {% if not weekly.closed %}
+          <details class="group">
+            <summary class="text-xs text-gray-400 dark:text-slate-500 cursor-pointer select-none list-none flex items-center gap-1 hover:text-blue-500 transition">
+              <span class="group-open:rotate-90 transition-transform inline-block">▶</span>
+              {{ 'Modifier la note' if d.note else 'Ajouter une note' }}
+            </summary>
+            <form method="POST" action="/budget/noter_jour" class="flex gap-2 mt-2">
+              <input type="hidden" name="week_start" value="{{ week_start }}">
+              <input type="hidden" name="date" value="{{ d.date }}">
+              <input type="text" name="note" value="{{ d.note }}" placeholder="Ex: Courses, sortie prévue…" class="jf-input flex-1 text-xs">
+              <button class="px-3 py-2 border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 rounded-xl text-xs font-semibold hover:border-blue-400 hover:text-blue-600 transition">💾</button>
+            </form>
+          </details>
+          {% endif %}
+
         </div>
       </div>
-
-      {% if est_passe or est_auj %}
-      <div style="margin-bottom:0.4rem;">
-        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--muted); margin-bottom:4px;">
-          <span>Dépensé : <strong style="color:{{ '#ef4444' if d.spent > 0 else 'var(--muted)' }};">{{ d.spent|cfa }}</strong></span>
-          <span>{{ "%.0f"|format(pct) }}%</span>
-        </div>
-        <div class="progress">
-          <div class="progress-bar" style="width:{{ pct_clamped }}%; background:{{ '#ef4444' if pct > 100 else '#f59e0b' if pct > 80 else '#10b981' }};"></div>
-        </div>
-        {% if pct > 100 %}
-        <div style="font-size:0.72rem; color:#ef4444; margin-top:4px;">⚠️ Dépassement de {{ (d.spent - d.real)|cfa }}</div>
-        {% endif %}
-      </div>
-      {% else %}
-      <div style="font-size:0.78rem; color:var(--muted); font-style:italic; margin-bottom:0.4rem;">
-        Jour à venir — {{ d.real|cfa }} disponibles
-      </div>
-      {% endif %}
-
-      <!-- Note du jour -->
-      {% if d.note %}
-      <div style="font-size:0.78rem; color:var(--muted); background:var(--surface2); border-radius:6px; padding:0.4rem 0.6rem; margin-bottom:0.4rem;">
-        📝 {{ d.note }}
-      </div>
-      {% endif %}
-
-      {% if not weekly.closed %}
-      <details style="margin-top:0.25rem;">
-        <summary style="font-size:0.75rem; color:var(--muted); cursor:pointer; list-style:none;">📝 {{ 'Modifier la note' if d.note else 'Ajouter une note' }}</summary>
-        <form method="POST" action="/budget/noter_jour" class="flex gap-1 mt-1" style="flex-wrap:wrap;">
-          <input type="hidden" name="week_start" value="{{ week_start }}">
-          <input type="hidden" name="date" value="{{ d.date }}">
-          <input type="text" name="note" value="{{ d.note }}" placeholder="Ex: Semaine chargée, sortie prévue…" style="flex:1; font-size:0.8rem;">
-          <button class="btn btn-outline btn-sm">💾</button>
-        </form>
-      </details>
-      {% endif %}
-
+      {% endfor %}
     </div>
-    {% endfor %}
 
     {% else %}
-    <div class="card" style="text-align:center; padding:3rem; color:var(--muted);">
-      {% if is_current_week %}Définis un budget pour voir le planning journalier.
-      {% else %}Aucun budget enregistré pour cette semaine.{% endif %}
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-gray-200 dark:border-slate-700 p-12 text-center">
+      <p class="text-2xl mb-3">📅</p>
+      <p class="text-sm text-gray-400 dark:text-slate-500">
+        {% if is_current_week %}Définis un budget pour voir le planning journalier.
+        {% else %}Aucun budget enregistré pour cette semaine.{% endif %}
+      </p>
     </div>
     {% endif %}
+
   </div>
 </div>
 {% endblock %}

@@ -1,119 +1,137 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="mb-3" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+
+<div class="flex items-start justify-between flex-wrap gap-4 mb-7">
   <div>
-    <h1 style="font-size:1.5rem; font-weight:700;">📈 Bilan mensuel</h1>
-    <p class="text-muted">{{ month }}</p>
+    <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">📈 Bilan mensuel</h1>
+    <p class="text-sm text-gray-400 dark:text-slate-500 mt-0.5">{{ month }}</p>
   </div>
-  <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-    <select onchange="window.location='/bilan/'+this.value" style="width:auto;">
+  <div class="flex items-center gap-3 flex-wrap">
+    <select onchange="window.location='/bilan/'+this.value"
+      class="jf-input w-auto text-sm">
       {% for m in months_available %}
       <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
       {% endfor %}
     </select>
-    <a href="/export?month={{ month }}" class="btn btn-outline btn-sm">⬇️ Export CSV</a>
+    <a href="/export?month={{ month }}" class="px-4 py-2.5 border border-gray-200 dark:border-slate-700 text-sm font-semibold text-gray-600 dark:text-slate-400 rounded-xl hover:border-blue-400 hover:text-blue-600 transition flex items-center gap-2">
+      ⬇️ Export CSV
+    </a>
   </div>
 </div>
 
-<!-- KPIs principaux -->
-<div class="grid-4 mb-3">
-  <div class="stat-card" style="border-left:3px solid #10b981;">
-    <div class="stat-label">💰 Revenus</div>
-    <div class="stat-value green" style="font-size:1.4rem;">+{{ income|cfa }}</div>
+<!-- KPIs ─────────────────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
+
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+    <div class="flex items-start justify-between mb-3">
+      <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Revenus</p>
+      <div class="w-9 h-9 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-base">💰</div>
+    </div>
+    <p class="text-2xl font-extrabold text-emerald-500">+{{ income|cfa }}</p>
     {% set diff_inc = income - prev_income %}
-    <div class="stat-sub">
+    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">
       {% if prev_income > 0 %}
-        vs mois préc. :
-        <span class="{{ 'green' if diff_inc >= 0 else 'red' }}">
-          {{ '+' if diff_inc >= 0 else '' }}{{ diff_inc|cfa }}
-        </span>
-      {% else %}Mois précédent : aucun revenu{% endif %}
-    </div>
+      vs mois préc. : <span class="{{ 'text-emerald-500' if diff_inc >= 0 else 'text-red-500' }} font-semibold">{{ '+' if diff_inc >= 0 else '' }}{{ diff_inc|cfa }}</span>
+      {% else %}Pas de référence{% endif %}
+    </p>
   </div>
-  <div class="stat-card" style="border-left:3px solid #ef4444;">
-    <div class="stat-label">💸 Dépenses</div>
-    <div class="stat-value red" style="font-size:1.4rem;">-{{ expenses|cfa }}</div>
+
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+    <div class="flex items-start justify-between mb-3">
+      <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Dépenses</p>
+      <div class="w-9 h-9 rounded-2xl bg-red-50 dark:bg-red-900/30 flex items-center justify-center text-base">💸</div>
+    </div>
+    <p class="text-2xl font-extrabold text-red-500">-{{ expenses|cfa }}</p>
     {% set diff_exp = expenses - prev_expenses %}
-    <div class="stat-sub">
+    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">
       {% if prev_expenses > 0 %}
-        vs mois préc. :
-        <span class="{{ 'red' if diff_exp > 0 else 'green' }}">
-          {{ '+' if diff_exp >= 0 else '' }}{{ diff_exp|cfa }}
-        </span>
-      {% else %}Mois précédent : aucune dépense{% endif %}
-    </div>
+      vs mois préc. : <span class="{{ 'text-red-500' if diff_exp > 0 else 'text-emerald-500' }} font-semibold">{{ '+' if diff_exp >= 0 else '' }}{{ diff_exp|cfa }}</span>
+      {% else %}Pas de référence{% endif %}
+    </p>
   </div>
-  <div class="stat-card" style="border-left:3px solid #3b82f6;">
-    <div class="stat-label">📊 Solde net</div>
-    <div class="stat-value {{ 'green' if solde_net >= 0 else 'red' }}" style="font-size:1.4rem;">
+
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+    <div class="flex items-start justify-between mb-3">
+      <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Solde net</p>
+      <div class="w-9 h-9 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-base">📊</div>
+    </div>
+    <p class="text-2xl font-extrabold {{ 'text-emerald-500' if solde_net >= 0 else 'text-red-500' }}">
       {{ '+' if solde_net >= 0 else '' }}{{ solde_net|cfa }}
+    </p>
+    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">Revenus − Dépenses</p>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+    <div class="flex items-start justify-between mb-3">
+      <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Taux d'épargne</p>
+      <div class="w-9 h-9 rounded-2xl bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center text-base">🏦</div>
     </div>
-    <div class="stat-sub">Revenus − Dépenses</div>
+    <p class="text-2xl font-extrabold text-purple-500">{{ taux_epargne }}%</p>
+    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">{{ epargne|cfa }} mis en réserve</p>
   </div>
-  <div class="stat-card" style="border-left:3px solid #8b5cf6;">
-    <div class="stat-label">🏦 Taux d'épargne</div>
-    <div class="stat-value" style="font-size:1.4rem; color:var(--purple);">{{ taux_epargne }}%</div>
-    <div class="stat-sub">{{ epargne|cfa }} mis en réserve</div>
-  </div>
+
 </div>
 
-<!-- Répartition par catégorie -->
+<!-- Contenu principal ────────────────────────────────────────────────────── -->
 {% if by_cat %}
-<div class="grid-2">
-  <div>
-    <div class="section-title">🗂️ Dépenses par catégorie</div>
-    <div class="card">
-      {% set max_cat = by_cat[0].total %}
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+  <!-- Dépenses par catégorie -->
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+    <h3 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-5">🗂️ Dépenses par catégorie</h3>
+    {% set max_cat = by_cat[0].total %}
+    <div class="space-y-4">
       {% for c in by_cat %}
-      <div style="margin-bottom:0.875rem;">
-        <div style="display:flex; justify-content:space-between; font-size:0.875rem; margin-bottom:4px;">
-          <span>{{ c.icon }} {{ c.name }}</span>
-          <span class="font-bold">
+      <div>
+        <div class="flex justify-between items-center mb-1.5">
+          <span class="text-sm font-semibold text-gray-700 dark:text-slate-300 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-lg flex items-center justify-center text-sm" style="background:{{ c.color }}22">{{ c.icon }}</span>
+            {{ c.name }}
+          </span>
+          <span class="text-sm font-bold text-gray-900 dark:text-white">
             {{ c.total|cfa }}
-            <span class="text-muted" style="font-weight:400;">
-              ({{ "%.0f"|format(c.total / expenses * 100) if expenses > 0 else 0 }}%)
-            </span>
+            <span class="text-xs font-normal text-gray-400">({{ "%.0f"|format(c.total / expenses * 100) if expenses > 0 else 0 }}%)</span>
           </span>
         </div>
-        <div class="progress">
-          <div class="progress-bar" style="width:{{ (c.total / max_cat * 100) if max_cat > 0 else 0 }}%; background:{{ c.color }};"></div>
+        <div class="jf-progress-sm">
+          <div class="jf-progress-bar" style="width:{{ (c.total / max_cat * 100) if max_cat > 0 else 0 }}%; background:{{ c.color }};"></div>
         </div>
       </div>
       {% endfor %}
     </div>
   </div>
 
-  <div>
-    <div class="section-title">📊 Résumé visuel</div>
-    <div class="card" style="display:flex; flex-direction:column; gap:1rem;">
-      <!-- Barre revenus vs dépenses -->
+  <!-- Résumé visuel -->
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+    <h3 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-5">📊 Résumé visuel</h3>
+    <div class="space-y-5">
+
       {% if income > 0 %}
       {% set exp_pct = [expenses / income * 100, 100] | min %}
       <div>
-        <div style="font-size:0.82rem; color:var(--muted); margin-bottom:4px; display:flex; justify-content:space-between;">
-          <span>Taux de consommation</span>
-          <span class="{{ 'red' if exp_pct > 90 else 'amber' if exp_pct > 70 else 'green' }}">{{ "%.1f"|format(exp_pct) }}%</span>
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-xs font-semibold text-gray-500 dark:text-slate-400">Taux de consommation</span>
+          <span class="text-sm font-bold {{ 'text-red-500' if exp_pct > 90 else 'text-amber-500' if exp_pct > 70 else 'text-emerald-500' }}">{{ "%.1f"|format(exp_pct) }}%</span>
         </div>
-        <div class="progress" style="height:12px;">
-          <div class="progress-bar" style="width:{{ exp_pct }}%; background:{{ '#ef4444' if exp_pct > 90 else '#f59e0b' if exp_pct > 70 else '#10b981' }};"></div>
+        <div class="jf-progress">
+          <div class="jf-progress-bar {% if exp_pct > 90 %}fill-red{% elif exp_pct > 70 %}fill-amber{% else %}fill-green{% endif %}" style="width:{{ exp_pct }}%"></div>
         </div>
-        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--muted); margin-top:4px;">
+        <div class="flex justify-between text-xs text-gray-400 dark:text-slate-500 mt-1.5">
           <span>0</span>
           <span>Revenus : {{ income|cfa }}</span>
         </div>
       </div>
       {% endif %}
 
-      <!-- Taux d'épargne visuel -->
       <div>
-        <div style="font-size:0.82rem; color:var(--muted); margin-bottom:4px; display:flex; justify-content:space-between;">
-          <span>Taux d'épargne</span>
-          <span class="{{ 'green' if taux_epargne >= 20 else 'amber' if taux_epargne >= 10 else 'red' }}">{{ taux_epargne }}%</span>
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-xs font-semibold text-gray-500 dark:text-slate-400">Taux d'épargne</span>
+          <span class="text-sm font-bold {{ 'text-emerald-500' if taux_epargne >= 20 else 'text-amber-500' if taux_epargne >= 10 else 'text-red-500' }}">{{ taux_epargne }}%</span>
         </div>
-        <div class="progress" style="height:12px;">
-          <div class="progress-bar" style="width:{{ [taux_epargne, 100]|min }}%; background:{{ '#10b981' if taux_epargne >= 20 else '#f59e0b' if taux_epargne >= 10 else '#ef4444' }};"></div>
+        <div class="jf-progress">
+          <div class="jf-progress-bar {% if taux_epargne >= 20 %}fill-green{% elif taux_epargne >= 10 %}fill-amber{% else %}fill-red{% endif %}" style="width:{{ [taux_epargne, 100]|min }}%"></div>
         </div>
-        <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--muted); margin-top:4px;">
+        <div class="flex justify-between text-xs text-gray-400 dark:text-slate-500 mt-1.5">
           <span>Objectif conseillé : 20%</span>
           <span>{{ epargne|cfa }} épargnés</span>
         </div>
@@ -121,18 +139,26 @@
 
       <!-- Top catégorie -->
       {% if by_cat %}
-      <div style="background:var(--surface2); border-radius:8px; padding:0.75rem;">
-        <div style="font-size:0.78rem; color:var(--muted); margin-bottom:4px;">Catégorie la plus dépensée</div>
-        <div style="font-size:1.1rem; font-weight:700;">{{ by_cat[0].icon }} {{ by_cat[0].name }}</div>
-        <div style="font-size:0.875rem; color:var(--red);">{{ by_cat[0].total|cfa }}</div>
+      <div class="px-4 py-4 bg-gray-50 dark:bg-slate-800 rounded-2xl">
+        <p class="text-xs text-gray-400 dark:text-slate-500 mb-1.5">Catégorie la plus dépensée</p>
+        <div class="flex items-center gap-2">
+          <div class="w-10 h-10 rounded-2xl flex items-center justify-center text-xl" style="background:{{ by_cat[0].color }}22">{{ by_cat[0].icon }}</div>
+          <div>
+            <p class="font-bold text-gray-900 dark:text-white">{{ by_cat[0].name }}</p>
+            <p class="text-sm font-semibold text-red-500">{{ by_cat[0].total|cfa }}</p>
+          </div>
+        </div>
       </div>
       {% endif %}
+
     </div>
   </div>
+
 </div>
 {% else %}
-<div class="card" style="text-align:center; padding:3rem; color:var(--muted);">
-  Aucune dépense enregistrée pour {{ month }}.
+<div class="bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-gray-200 dark:border-slate-700 py-16 text-center">
+  <p class="text-3xl mb-3">📈</p>
+  <p class="text-sm text-gray-400 dark:text-slate-500">Aucune dépense enregistrée pour {{ month }}.</p>
 </div>
 {% endif %}
 {% endblock %}

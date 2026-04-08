@@ -1,156 +1,164 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="mb-3">
-  <h1 style="font-size:1.5rem; font-weight:700;">🏦 Gestion de la Réserve</h1>
-  <p class="text-muted">Alimente, retire ou ajuste ton épargne directement.</p>
+
+<div class="mb-7">
+  <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">🏦 Réserve</h1>
+  <p class="text-sm text-gray-400 dark:text-slate-500 mt-0.5">Gérez votre épargne directement</p>
 </div>
 
-<!-- SOLDE PRINCIPAL -->
-<div style="max-width:900px;">
-  <div class="stat-card mb-3" style="border-left:3px solid #10b981; padding:1.5rem;">
-    <div class="stat-label">Solde actuel de la réserve</div>
-    <div class="stat-value green" style="font-size:2rem;">{{ reserve_bal|cfa }}</div>
-    <div class="stat-sub">Budget semaine disponible : {{ budget_bal|cfa }}</div>
+<!-- Solde principal ─────────────────────────────────────────────────────── -->
+<div class="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-3xl p-6 mb-6 text-white shadow-lg shadow-emerald-200 dark:shadow-emerald-900/30">
+  <p class="text-sm font-semibold opacity-80 mb-1">Solde actuel de la réserve</p>
+  <p class="text-4xl font-extrabold tracking-tight">{{ reserve_bal|cfa }}</p>
+  <p class="text-sm opacity-70 mt-2">Budget semaine disponible : <strong class="opacity-100">{{ budget_bal|cfa }}</strong></p>
+</div>
+
+<!-- Actions ─────────────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-7">
+
+  <!-- Alimenter -->
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-emerald-200 dark:border-emerald-700/40 p-5">
+    <h3 class="text-sm font-bold text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-2">➕ Alimenter la réserve</h3>
+    <p class="text-xs text-gray-400 dark:text-slate-500 mb-4">Ajoute de l'argent directement dans ta réserve.</p>
+    <form method="POST" class="space-y-3">
+      <input type="hidden" name="action" value="credit">
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Montant (FCFA)</label>
+        <input type="number" name="montant" min="1" step="1" placeholder="Ex: 50 000" required class="jf-input text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Description</label>
+        <input type="text" name="description" placeholder="Ex: Épargne, Bonus…" class="jf-input text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Date</label>
+        <input type="date" name="date" value="{{ today }}" class="jf-input text-sm">
+      </div>
+      <button class="w-full py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl text-sm transition">➕ Ajouter</button>
+    </form>
   </div>
 
-  <div class="grid-3 mb-3">
-
-    <!-- ALIMENTER -->
-    <div class="card" style="border-top:3px solid #10b981;">
-      <div class="section-title" style="color:#10b981;">➕ Alimenter la réserve</div>
-      <p class="text-muted mb-2" style="font-size:0.82rem;">Ajoute de l'argent directement dans ta réserve sans passer par un revenu.</p>
-      <form method="POST">
-        <input type="hidden" name="action" value="credit">
-        <div class="form-group">
-          <label>Montant (FCFA)</label>
-          <input type="number" name="montant" min="1" step="1" placeholder="Ex: 50 000" required>
-        </div>
-        <div class="form-group">
-          <label>Description</label>
-          <input type="text" name="description" placeholder="Ex: Épargne manuelle, Bonus...">
-        </div>
-        <div class="form-group">
-          <label>Date</label>
-          <input type="date" name="date" value="{{ today }}">
-        </div>
-        <button class="btn btn-success w-full">➕ Ajouter à la réserve</button>
-      </form>
-    </div>
-
-    <!-- RETIRER -->
-    <div class="card" style="border-top:3px solid #ef4444;">
-      <div class="section-title" style="color:#ef4444;">➖ Retirer de la réserve</div>
-      <p class="text-muted mb-2" style="font-size:0.82rem;">Retrait direct pour une dépense imprévue ou un autre usage hors budget.</p>
-      <form method="POST">
-        <input type="hidden" name="action" value="debit">
-        <div class="form-group">
-          <label>Montant (FCFA)</label>
-          <input type="number" name="montant" min="1" step="1" max="{{ reserve_bal }}"
-            placeholder="Max : {{ reserve_bal|cfa }}" required>
-        </div>
-        <div class="form-group">
-          <label>Description</label>
-          <input type="text" name="description" placeholder="Ex: Urgence, Réparation...">
-        </div>
-        <div class="form-group">
-          <label>Date</label>
-          <input type="date" name="date" value="{{ today }}">
-        </div>
-        <button class="btn btn-danger w-full">➖ Retirer de la réserve</button>
-      </form>
-    </div>
-
-    <!-- AJUSTEMENT -->
-    <div class="card" style="border-top:3px solid #f59e0b;">
-      <div class="section-title" style="color:#f59e0b;">🎯 Définir un solde précis</div>
-      <p class="text-muted mb-2" style="font-size:0.82rem;">Force la réserve à un montant exact. L'app calcule et enregistre la différence automatiquement.</p>
-      <form method="POST">
-        <input type="hidden" name="action" value="ajustement">
-        <div class="form-group">
-          <label>Nouveau solde souhaité (FCFA)</label>
-          <input type="number" name="montant" min="0" step="1"
-            placeholder="Ex: 200 000" required
-            oninput="updateDiff(this.value)">
-        </div>
-        <div id="diff-preview" style="display:none; padding:0.6rem 0.875rem; border-radius:var(--border-radius-sm); font-size:0.83rem; margin-bottom:1rem;"></div>
-        <div class="form-group">
-          <label>Description</label>
-          <input type="text" name="description" placeholder="Ex: Correction solde...">
-        </div>
-        <div class="form-group">
-          <label>Date</label>
-          <input type="date" name="date" value="{{ today }}">
-        </div>
-        <button class="btn w-full" style="background:#f59e0b; color:white;">🎯 Appliquer l'ajustement</button>
-      </form>
-    </div>
-
+  <!-- Retirer -->
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-red-200 dark:border-red-700/40 p-5">
+    <h3 class="text-sm font-bold text-red-500 dark:text-red-400 mb-1 flex items-center gap-2">➖ Retirer de la réserve</h3>
+    <p class="text-xs text-gray-400 dark:text-slate-500 mb-4">Retrait direct pour une dépense imprévue.</p>
+    <form method="POST" class="space-y-3">
+      <input type="hidden" name="action" value="debit">
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Montant (FCFA)</label>
+        <input type="number" name="montant" min="1" step="1" max="{{ reserve_bal }}"
+          placeholder="Max : {{ reserve_bal|cfa }}" required class="jf-input text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Description</label>
+        <input type="text" name="description" placeholder="Ex: Urgence, Réparation…" class="jf-input text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Date</label>
+        <input type="date" name="date" value="{{ today }}" class="jf-input text-sm">
+      </div>
+      <button class="w-full py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl text-sm transition">➖ Retirer</button>
+    </form>
   </div>
 
-  <!-- HISTORIQUE DES OPÉRATIONS SUR LA RÉSERVE -->
-  <div class="section-title">📋 Historique de la réserve</div>
-  <div class="card" style="padding:0; overflow:hidden;">
-    {% if historique %}
-    <table>
-      <thead><tr>
-        <th>Type</th><th>Description</th><th>Date</th><th class="text-right">Montant</th><th class="text-right">Sens</th>
-      </tr></thead>
-      <tbody>
-      {% for op in historique %}
-      {% set is_credit = op.destination == 'reserve' %}
-      <tr>
-        <td style="width:36px; text-align:center; font-size:1rem;">
-          {% if op.type == 'reserve_credit' %}➕
-          {% elif op.type == 'reserve_debit' %}➖
-          {% elif op.type == 'adjustment' %}🎯
-          {% elif op.type == 'allocation' %}📥
-          {% elif op.type == 'transfer' %}↔️
-          {% elif op.type == 'week_close' %}🔒
-          {% elif op.type in ('loan','loan_received') %}🤝
-          {% elif op.type == 'repayment' %}💵
-          {% elif op.type in ('expense_reserve') %}💸
-          {% else %}📋{% endif %}
-        </td>
-        <td style="font-size:0.875rem;">{{ op.description or '—' }}</td>
-        <td class="text-muted" style="font-size:0.8rem; white-space:nowrap;">{{ op.date }}</td>
-        <td class="text-right font-bold" style="white-space:nowrap;">
-          {{ op.amount|cfa }}
-        </td>
-        <td class="text-right" style="white-space:nowrap;">
-          {% if is_credit %}
-            <span class="badge badge-green">+ Entrée</span>
-          {% else %}
-            <span class="badge badge-red">− Sortie</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
+  <!-- Ajustement -->
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-amber-200 dark:border-amber-700/40 p-5">
+    <h3 class="text-sm font-bold text-amber-600 dark:text-amber-400 mb-1 flex items-center gap-2">🎯 Définir un solde précis</h3>
+    <p class="text-xs text-gray-400 dark:text-slate-500 mb-4">Force la réserve à un montant exact.</p>
+    <form method="POST" class="space-y-3">
+      <input type="hidden" name="action" value="ajustement">
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Nouveau solde (FCFA)</label>
+        <input type="number" name="montant" min="0" step="1" placeholder="Ex: 200 000" required
+          oninput="updateDiff(this.value)" class="jf-input text-sm">
+      </div>
+      <div id="diff-preview" style="display:none" class="px-3.5 py-2.5 rounded-xl text-xs font-semibold"></div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Description</label>
+        <input type="text" name="description" placeholder="Ex: Correction solde…" class="jf-input text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Date</label>
+        <input type="date" name="date" value="{{ today }}" class="jf-input text-sm">
+      </div>
+      <button class="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-xl text-sm transition">🎯 Appliquer</button>
+    </form>
+  </div>
+
+</div>
+
+<!-- Historique réserve ──────────────────────────────────────────────────── -->
+<div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 overflow-hidden">
+  <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-800">
+    <h3 class="text-sm font-bold text-gray-700 dark:text-slate-300">📋 Historique de la réserve</h3>
+  </div>
+  {% if historique %}
+  <div class="overflow-x-auto">
+    <table class="w-full jf-table">
+      <thead>
+        <tr class="border-b border-gray-100 dark:border-slate-800">
+          <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Type</th>
+          <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Description</th>
+          <th class="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider hidden sm:table-cell">Date</th>
+          <th class="px-5 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Montant</th>
+          <th class="px-5 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Sens</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50 dark:divide-slate-800">
+        {% for op in historique %}
+        {% set is_credit = op.destination == 'reserve' %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition">
+          <td class="px-5 py-3.5">
+            <div class="w-9 h-9 rounded-xl bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-base">
+              {% if op.type == 'reserve_credit' %}➕
+              {% elif op.type == 'reserve_debit' %}➖
+              {% elif op.type == 'adjustment' %}🎯
+              {% elif op.type == 'allocation' %}📥
+              {% elif op.type in ('transfer','week_close') %}↔️
+              {% elif op.type in ('loan','loan_received') %}🤝
+              {% elif op.type == 'repayment' %}💵
+              {% elif op.type == 'expense_reserve' %}💸
+              {% else %}📋{% endif %}
+            </div>
+          </td>
+          <td class="px-5 py-3.5 text-sm font-semibold text-gray-800 dark:text-slate-200">{{ op.description or '—' }}</td>
+          <td class="px-5 py-3.5 hidden sm:table-cell text-xs text-gray-500 dark:text-slate-400 font-medium whitespace-nowrap">{{ op.date }}</td>
+          <td class="px-5 py-3.5 text-right text-sm font-bold text-gray-900 dark:text-white whitespace-nowrap">{{ op.amount|cfa }}</td>
+          <td class="px-5 py-3.5 text-right">
+            {% if is_credit %}
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">+ Entrée</span>
+            {% else %}
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400">− Sortie</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
       </tbody>
     </table>
-    {% else %}
-    <div style="padding:3rem; text-align:center; color:var(--muted);">Aucune opération sur la réserve.</div>
-    {% endif %}
   </div>
+  {% else %}
+  <div class="py-16 text-center">
+    <p class="text-3xl mb-3">🏦</p>
+    <p class="text-sm text-gray-400 dark:text-slate-500">Aucune opération sur la réserve.</p>
+  </div>
+  {% endif %}
 </div>
 
+<span id="jf-reserve-data" data-balance="{{ reserve_bal }}" style="display:none"></span>
 <script>
-const reserveBal = {{ reserve_bal }};
+const reserveBal = parseFloat(document.getElementById('jf-reserve-data').dataset.balance) || 0;
 function updateDiff(val) {
+  const box = document.getElementById('diff-preview');
   const nouveau = parseFloat(val) || 0;
-  const diff    = nouveau - reserveBal;
-  const box     = document.getElementById('diff-preview');
+  const diff = nouveau - reserveBal;
   if (!val || diff === 0) { box.style.display = 'none'; return; }
   box.style.display = 'block';
   if (diff > 0) {
-    box.style.background = '#064e3b';
-    box.style.color = '#6ee7b7';
-    box.style.border = '1px solid #065f46';
-    box.textContent = `➕ La réserve sera créditée de ${Math.round(diff).toLocaleString('fr-FR')} FCFA`;
+    box.className = 'px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200';
+    box.textContent = '➕ La réserve sera créditée de ' + Math.round(diff).toLocaleString('fr-FR') + ' FCFA';
   } else {
-    box.style.background = '#7f1d1d';
-    box.style.color = '#fca5a5';
-    box.style.border = '1px solid #991b1b';
-    box.textContent = `➖ La réserve sera débitée de ${Math.round(Math.abs(diff)).toLocaleString('fr-FR')} FCFA`;
+    box.className = 'px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-red-50 text-red-700 border border-red-200';
+    box.textContent = '➖ La réserve sera débitée de ' + Math.round(Math.abs(diff)).toLocaleString('fr-FR') + ' FCFA';
   }
 }
 </script>

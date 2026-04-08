@@ -1,104 +1,116 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="mb-3">
-  <h1 style="font-size:1.5rem; font-weight:700;">🔄 Dépenses récurrentes</h1>
-  <p class="text-muted">Automatise tes dépenses régulières — elles s'enregistrent toutes seules.</p>
+
+<div class="mb-7">
+  <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">🔄 Dépenses récurrentes</h1>
+  <p class="text-sm text-gray-400 dark:text-slate-500 mt-0.5">Automatisez vos dépenses régulières</p>
 </div>
 
-<div class="grid-2">
+<div class="grid grid-cols-1 xl:grid-cols-5 gap-6">
 
-  <!-- Formulaire ajout -->
-  <div>
-    <div class="card">
-      <div class="section-title">➕ Nouvelle dépense récurrente</div>
-      <form method="POST">
+  <!-- Formulaire ──────────────────────────────────────────────────────── -->
+  <div class="xl:col-span-2">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+      <h3 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-4">➕ Nouvelle dépense récurrente</h3>
+      <form method="POST" class="space-y-4">
         <input type="hidden" name="action" value="add">
-        <div class="form-group">
-          <label>Description</label>
-          <input type="text" name="description" placeholder="Ex: Loyer, Abonnement Netflix…" required autofocus>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Description</label>
+          <input type="text" name="description" placeholder="Ex: Loyer, Abonnement Netflix…" required autofocus class="jf-input">
         </div>
-        <div class="form-group">
-          <label>Montant (FCFA)</label>
-          <input type="number" name="amount" step="1" min="1" placeholder="Ex: 5 000" required>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Montant (FCFA)</label>
+          <input type="number" name="amount" step="1" min="1" placeholder="Ex: 5 000" required class="jf-input">
         </div>
-        <div class="form-group">
-          <label>Catégorie</label>
-          <select name="category_id">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Catégorie</label>
+          <select name="category_id" class="jf-input">
             <option value="">— Aucune —</option>
             {% for c in categories %}
             <option value="{{ c.id }}">{{ c.icon }} {{ c.name }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="form-group">
-          <label>Source</label>
-          <select name="source">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Source</label>
+          <select name="source" class="jf-input">
             <option value="auto">🔄 Automatique (budget → réserve)</option>
             <option value="budget">📅 Budget semaine</option>
             <option value="reserve">🏦 Réserve</option>
           </select>
         </div>
-        <div class="form-group">
-          <label>Fréquence</label>
-          <select name="frequency">
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Fréquence</label>
+          <select name="frequency" class="jf-input">
             <option value="daily">Quotidienne</option>
             <option value="weekly">Hebdomadaire</option>
             <option value="monthly" selected>Mensuelle</option>
           </select>
         </div>
-        <div class="form-group">
-          <label>Prochaine date d'exécution</label>
-          <input type="date" name="next_date" value="{{ today }}" required>
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Prochaine date d'exécution</label>
+          <input type="date" name="next_date" value="{{ today }}" required class="jf-input">
         </div>
-        <button class="btn btn-primary w-full">✅ Enregistrer</button>
+        <button class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm transition shadow-sm shadow-blue-200 dark:shadow-none">✅ Enregistrer</button>
       </form>
     </div>
   </div>
 
-  <!-- Liste -->
-  <div>
-    <div class="section-title">Dépenses enregistrées</div>
+  <!-- Liste ──────────────────────────────────────────────────────────── -->
+  <div class="xl:col-span-3 space-y-3">
+    <h3 class="text-sm font-bold text-gray-700 dark:text-slate-300">Dépenses enregistrées</h3>
+
     {% if recs %}
     {% for r in recs %}
-    <div class="card mb-2" style="padding:1rem; border-left:3px solid {{ '#10b981' if r.active else '#475569' }}; opacity:{{ '1' if r.active else '0.6' }};">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-        <div>
-          <div style="font-weight:600; font-size:0.9rem;">
-            {% if r.cat_icon %}{{ r.cat_icon }}{% endif %} {{ r.description }}
-            {% if not r.active %}<span class="badge badge-gray" style="font-size:0.65rem; margin-left:4px;">En pause</span>{% endif %}
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 overflow-hidden {{ 'opacity-60' if not r.active else '' }}">
+      <div class="h-1" style="background:{{ '#10b981' if r.active else '#64748b' }}"></div>
+      <div class="p-5">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="font-bold text-gray-900 dark:text-white">
+                {% if r.cat_icon %}{{ r.cat_icon }} {% endif %}{{ r.description }}
+              </span>
+              {% if not r.active %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400">En pause</span>
+              {% endif %}
+            </div>
+            <p class="text-xs text-gray-400 dark:text-slate-500">
+              <strong class="text-gray-700 dark:text-slate-300">{{ r.amount|cfa }}</strong> —
+              {% if r.frequency == 'daily' %}Quotidienne
+              {% elif r.frequency == 'weekly' %}Hebdomadaire
+              {% else %}Mensuelle{% endif %}
+              — Source : {{ r.source }}
+            </p>
+            <p class="text-xs mt-1 {{ 'text-amber-500 font-semibold' if r.next_date <= today else 'text-gray-400 dark:text-slate-500' }}">
+              Prochaine : <strong>{{ r.next_date }}</strong>
+              {% if r.next_date <= today and r.active %} ⚡ En attente{% endif %}
+            </p>
           </div>
-          <div class="text-muted" style="font-size:0.78rem; margin-top:2px;">
-            {{ r.amount|cfa }} —
-            {% if r.frequency == 'daily' %}Quotidienne
-            {% elif r.frequency == 'weekly' %}Hebdomadaire
-            {% else %}Mensuelle{% endif %}
-            — Source : {{ r.source }}
+
+          <div class="flex flex-col gap-2 flex-shrink-0">
+            <form method="POST">
+              <input type="hidden" name="action" value="toggle">
+              <input type="hidden" name="rec_id" value="{{ r.id }}">
+              <button class="px-3 py-1.5 border border-gray-200 dark:border-slate-700 text-xs font-semibold text-gray-500 dark:text-slate-400 rounded-xl hover:border-blue-400 hover:text-blue-600 transition whitespace-nowrap">
+                {{ '⏸️ Pause' if r.active else '▶️ Activer' }}
+              </button>
+            </form>
+            <form method="POST" onsubmit="return confirm('Supprimer cette dépense récurrente ?')">
+              <input type="hidden" name="action" value="delete">
+              <input type="hidden" name="rec_id" value="{{ r.id }}">
+              <button class="w-full px-3 py-1.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/40 text-xs font-semibold text-red-600 dark:text-red-400 rounded-xl hover:bg-red-100 transition">🗑️</button>
+            </form>
           </div>
-          <div style="font-size:0.78rem; color:{{ '#f59e0b' if r.next_date <= today else 'var(--muted)' }};">
-            Prochaine : <strong>{{ r.next_date }}</strong>
-            {% if r.next_date <= today and r.active %}⚡ En attente{% endif %}
-          </div>
-        </div>
-        <div style="display:flex; flex-direction:column; gap:0.4rem; align-items:flex-end;">
-          <form method="POST">
-            <input type="hidden" name="action" value="toggle">
-            <input type="hidden" name="rec_id" value="{{ r.id }}">
-            <button class="btn btn-outline btn-sm" style="font-size:0.72rem;">
-              {{ '⏸️ Pause' if r.active else '▶️ Activer' }}
-            </button>
-          </form>
-          <form method="POST" onsubmit="return confirm('Supprimer cette dépense récurrente ?')">
-            <input type="hidden" name="action" value="delete">
-            <input type="hidden" name="rec_id" value="{{ r.id }}">
-            <button class="btn btn-sm" style="padding:0.25rem 0.5rem; font-size:0.72rem; background:#7f1d1d; color:#fca5a5; border:none;">🗑️</button>
-          </form>
         </div>
       </div>
     </div>
     {% endfor %}
+
     {% else %}
-    <div class="card" style="text-align:center; padding:3rem; color:var(--muted);">
-      Aucune dépense récurrente. Configure tes paiements réguliers pour les automatiser.
+    <div class="bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-gray-200 dark:border-slate-700 py-16 text-center">
+      <p class="text-3xl mb-3">🔄</p>
+      <p class="text-sm text-gray-400 dark:text-slate-500">Aucune dépense récurrente. Configurez vos paiements réguliers !</p>
     </div>
     {% endif %}
   </div>

@@ -1,19 +1,26 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="mb-3" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
-  <h1 style="font-size:1.5rem; font-weight:700;">📋 Historique des opérations</h1>
-  <a href="/export?month={{ filter_month }}" class="btn btn-outline btn-sm">⬇️ Export CSV {{ filter_month }}</a>
+
+<div class="flex items-center justify-between flex-wrap gap-3 mb-7">
+  <div>
+    <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">📋 Historique</h1>
+    <p class="text-sm text-gray-400 dark:text-slate-500 mt-0.5">Journal complet de vos opérations</p>
+  </div>
+  <a href="/export?month={{ filter_month }}" class="px-4 py-2.5 border border-gray-200 dark:border-slate-700 text-sm font-semibold text-gray-600 dark:text-slate-400 rounded-xl hover:border-blue-400 hover:text-blue-600 transition flex items-center gap-2">
+    ⬇️ Export CSV {{ filter_month }}
+  </a>
 </div>
 
-<div class="card mb-2" style="padding:1rem;">
-  <form method="GET" class="flex gap-2" style="flex-wrap:wrap; align-items:flex-end;">
+<!-- Filtres ────────────────────────────────────────────────────────────── -->
+<div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5 mb-6">
+  <form method="GET" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
     <div>
-      <label style="font-size:0.8rem;">Mois</label>
-      <input type="month" name="month" value="{{ filter_month }}" style="width:auto;">
+      <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Mois</label>
+      <input type="month" name="month" value="{{ filter_month }}" class="jf-input text-sm">
     </div>
     <div>
-      <label style="font-size:0.8rem;">Type</label>
-      <select name="type" style="width:auto;">
+      <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Type</label>
+      <select name="type" class="jf-input text-sm">
         <option value="">Tous</option>
         <option value="income"     {% if filter_type=='income'     %}selected{% endif %}>📥 Revenus</option>
         <option value="expense"    {% if filter_type=='expense'    %}selected{% endif %}>📤 Dépenses</option>
@@ -21,92 +28,112 @@
         <option value="transfer"   {% if filter_type=='transfer'   %}selected{% endif %}>↔️ Transferts</option>
         <option value="loan"       {% if filter_type=='loan'       %}selected{% endif %}>🤝 Prêts</option>
         <option value="repayment"  {% if filter_type=='repayment'  %}selected{% endif %}>💵 Remboursements</option>
-        <option value="week_close" {% if filter_type=='week_close' %}selected{% endif %}>🔒 Clôtures semaine</option>
+        <option value="week_close" {% if filter_type=='week_close' %}selected{% endif %}>🔒 Clôtures</option>
       </select>
     </div>
     <div>
-      <label style="font-size:0.8rem;">Catégorie</label>
-      <select name="cat" style="width:auto;">
+      <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Catégorie</label>
+      <select name="cat" class="jf-input text-sm">
         <option value="">Toutes</option>
         {% for c in categories %}
         <option value="{{ c.id }}" {% if filter_cat==c.id|string %}selected{% endif %}>{{ c.icon }} {{ c.name }}</option>
         {% endfor %}
       </select>
     </div>
-    <div style="flex:1; min-width:180px;">
-      <label style="font-size:0.8rem;">Recherche</label>
-      <input type="text" name="search" value="{{ filter_search }}" placeholder="Mot-clé dans la description…" style="width:100%;">
+    <div class="sm:col-span-2 lg:col-span-1">
+      <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Recherche</label>
+      <input type="text" name="search" value="{{ filter_search }}" placeholder="Mot-clé…" class="jf-input text-sm">
     </div>
-    <button class="btn btn-primary btn-sm">Filtrer</button>
-    <a href="/historique" class="btn btn-outline btn-sm">Réinitialiser</a>
+    <div class="flex gap-2">
+      <button class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm transition">Filtrer</button>
+      <a href="/historique" class="flex-1 py-2.5 text-center border border-gray-200 dark:border-slate-700 text-sm font-semibold text-gray-600 dark:text-slate-400 rounded-xl hover:border-blue-400 hover:text-blue-600 transition">Reset</a>
+    </div>
   </form>
 </div>
 
-<div class="grid-3 mb-2">
-  <div class="stat-card">
-    <div class="stat-label">Entrées</div>
-    <div class="stat-value green" style="font-size:1.2rem;">+{{ total_in|cfa }}</div>
+<!-- KPIs période ──────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-3 gap-4 mb-6">
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+    <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Entrées</p>
+    <p class="text-xl font-extrabold text-emerald-500">+{{ total_in|cfa }}</p>
   </div>
-  <div class="stat-card">
-    <div class="stat-label">Dépenses</div>
-    <div class="stat-value red" style="font-size:1.2rem;">-{{ total_out|cfa }}</div>
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+    <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Sorties</p>
+    <p class="text-xl font-extrabold text-red-500">-{{ total_out|cfa }}</p>
   </div>
-  <div class="stat-card">
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
     {% set bal = total_in - total_out %}
-    <div class="stat-label">Balance</div>
-    <div class="stat-value {{ 'green' if bal >= 0 else 'red' }}" style="font-size:1.2rem;">{{ bal|cfa }}</div>
+    <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-1">Balance</p>
+    <p class="text-xl font-extrabold {{ 'text-emerald-500' if bal >= 0 else 'text-red-500' }}">{{ bal|cfa }}</p>
   </div>
 </div>
 
-<div class="card" style="padding:0; overflow:hidden;">
+<!-- Tableau ────────────────────────────────────────────────────────────── -->
+<div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 overflow-hidden">
   {% if transactions %}
-  <table>
-    <thead>
-      <tr>
-        <th>Type</th>
-        <th>Description</th>
-        <th>Source → Dest.</th>
-        <th>Date</th>
-        <th class="text-right">Montant</th>
-        <th class="text-right" style="width:90px;">Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for t in transactions %}
-      <tr>
-        <td style="width:36px; text-align:center; font-size:1rem;">
-          {% if t.type in ('expense','expense_reserve') %}💸
-          {% elif t.type == 'income' %}📥
-          {% elif t.type == 'allocation' %}↗️
-          {% elif t.type in ('transfer','week_close') %}↔️
-          {% elif t.type in ('loan','loan_received') %}🤝
-          {% elif t.type == 'repayment' %}💵
-          {% else %}📋{% endif %}
-        </td>
-        <td>
-          <div style="font-size:0.875rem;">{{ t.description or '—' }}</div>
-          {% if t.cat_name %}<div class="text-muted" style="font-size:0.75rem;">{{ t.cat_icon }} {{ t.cat_name }}</div>{% endif %}
-        </td>
-        <td class="text-muted" style="font-size:0.78rem;">{{ t.source }} → {{ t.destination }}</td>
-        <td class="text-muted" style="font-size:0.8rem; white-space:nowrap;">{{ t.date }}</td>
-        <td class="text-right font-bold" style="white-space:nowrap;">
-          {% if t.type in ('expense','expense_reserve') %}<span class="red">-{{ t.amount|cfa }}</span>
-          {% elif t.destination in ('reserve','budget','income') and t.type not in ('expense','expense_reserve') %}<span class="green">+{{ t.amount|cfa }}</span>
-          {% else %}<span class="blue">{{ t.amount|cfa }}</span>{% endif %}
-        </td>
-        <td class="text-right" style="white-space:nowrap;">
-          <a href="/transaction/modifier/{{ t.id }}" class="btn btn-outline btn-sm" style="padding:0.2rem 0.5rem; font-size:0.72rem;">✏️</a>
-          <form method="POST" action="/transaction/supprimer/{{ t.id }}" style="display:inline;"
-                onsubmit="return confirm('Supprimer cette transaction ?')">
-            <button class="btn btn-sm" style="padding:0.2rem 0.5rem; font-size:0.72rem; background:#7f1d1d; color:#fca5a5; border:none;">🗑️</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="overflow-x-auto">
+    <table class="w-full jf-table">
+      <thead>
+        <tr class="border-b border-gray-100 dark:border-slate-800">
+          <th class="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Type</th>
+          <th class="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Description</th>
+          <th class="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider hidden md:table-cell">Comptes</th>
+          <th class="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider hidden sm:table-cell">Date</th>
+          <th class="px-5 py-3.5 text-right text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Montant</th>
+          <th class="px-5 py-3.5 text-right text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50 dark:divide-slate-800">
+        {% for t in transactions %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition">
+          <td class="px-5 py-3.5">
+            <div class="w-9 h-9 rounded-xl bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-base">
+              {% if t.type in ('expense','expense_reserve') %}💸
+              {% elif t.type == 'income' %}📥
+              {% elif t.type == 'allocation' %}↗️
+              {% elif t.type in ('transfer','week_close') %}↔️
+              {% elif t.type in ('loan','loan_received') %}🤝
+              {% elif t.type == 'repayment' %}💵
+              {% else %}📋{% endif %}
+            </div>
+          </td>
+          <td class="px-5 py-3.5">
+            <p class="text-sm font-semibold text-gray-800 dark:text-slate-200">{{ t.description or '—' }}</p>
+            {% if t.cat_name %}<p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{{ t.cat_icon }} {{ t.cat_name }}</p>{% endif %}
+          </td>
+          <td class="px-5 py-3.5 hidden md:table-cell">
+            <span class="text-xs text-gray-400 dark:text-slate-500 font-mono">{{ t.source }} → {{ t.destination }}</span>
+          </td>
+          <td class="px-5 py-3.5 hidden sm:table-cell">
+            <span class="text-xs text-gray-500 dark:text-slate-400 font-medium whitespace-nowrap">{{ t.date }}</span>
+          </td>
+          <td class="px-5 py-3.5 text-right whitespace-nowrap">
+            {% if t.type in ('expense','expense_reserve') %}
+              <span class="text-sm font-bold text-red-500">-{{ t.amount|cfa }}</span>
+            {% elif t.destination in ('reserve','budget','income') and t.type not in ('expense','expense_reserve') %}
+              <span class="text-sm font-bold text-emerald-500">+{{ t.amount|cfa }}</span>
+            {% else %}
+              <span class="text-sm font-bold text-blue-500">{{ t.amount|cfa }}</span>
+            {% endif %}
+          </td>
+          <td class="px-5 py-3.5 text-right whitespace-nowrap">
+            <div class="flex items-center justify-end gap-1.5">
+              <a href="/transaction/modifier/{{ t.id }}" class="px-2.5 py-1.5 border border-gray-200 dark:border-slate-700 text-xs font-semibold text-gray-500 dark:text-slate-400 rounded-lg hover:border-blue-400 hover:text-blue-600 transition">✏️</a>
+              <form method="POST" action="/transaction/supprimer/{{ t.id }}" style="display:inline;" onsubmit="return confirm('Supprimer cette transaction ?')">
+                <button class="px-2.5 py-1.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/40 text-xs font-semibold text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition">🗑️</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% else %}
-  <div style="padding:3rem; text-align:center; color:var(--muted);">Aucune opération pour cette période.</div>
+  <div class="py-16 text-center">
+    <p class="text-3xl mb-3">📋</p>
+    <p class="text-sm text-gray-400 dark:text-slate-500">Aucune opération pour cette période.</p>
+  </div>
   {% endif %}
 </div>
 {% endblock %}
