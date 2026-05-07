@@ -1457,5 +1457,6 @@ def bilan(month=None):
 if __name__ == "__main__":
     init_db()
     apply_recurring_expenses()
-    print("\n🚀 Application démarrée → http://127.0.0.1:5000\n")
-    app.run(debug=True, port=5000)
+    print("\n🚀 Application démarrée → http://127.0.0.1:8080")
+    print("📱 Accès réseau local  → http://192.168.1.82:8080\n")
+    app.run(host="0.0.0.0", debug=True, port=8080)

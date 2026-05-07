@@ -23,11 +23,11 @@ if errorlevel 1 (
 )
 
 echo  Demarrage de l'application...
-echo  Ouvrez votre navigateur sur : http://127.0.0.1:5000
+echo  Ouvrez votre navigateur sur : http://127.0.0.1:8080
 echo.
 
 :: Ouvrir le navigateur apres 2 secondes
-start /b cmd /c "timeout /t 2 >nul && start http://127.0.0.1:5000"
+start /b cmd /c "timeout /t 2 >nul && start http://127.0.0.1:8080"
 
 :: Lancer l'application
 python app.py

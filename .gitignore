@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+
+# Base de données (données privées)
+finance.db
+
+# Config locale Claude Code
+.claude/
+
+# Notes personnelles
+connexion_tel.txt
+
+# Fichiers de test / mockups locaux
+templates/test.html
+ui_mockup.html
