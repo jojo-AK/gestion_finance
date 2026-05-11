@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="mb-7">
+  <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">📝 Rattrapage détaillé</h1>
+  <p class="text-sm text-gray-400 dark:text-slate-500 mt-0.5">
+    Pot ouvert le <strong>{{ pot.date }}</strong>{% if is_multi_day %} — validité jusqu'au {{ pot.valid_until }}{% endif %}
+  </p>
+</div>
+
+<div class="max-w-3xl space-y-5">
+
+  <!-- Résumé -->
+  <div class="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-700/50 rounded-3xl p-5">
+    <div class="grid grid-cols-3 gap-3 text-center">
+      <div>
+        <p class="text-[0.65rem] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Pris au matin</p>
+        <p class="text-lg font-extrabold text-gray-900 dark:text-white mt-1">{{ pot.opened_amount|cfa }}</p>
+      </div>
+      <div>
+        <p class="text-[0.65rem] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Déjà tracé</p>
+        <p class="text-lg font-extrabold text-red-500 mt-1">-{{ (pot.opened_amount - pot_bal)|cfa }}</p>
+      </div>
+      <div>
+        <p class="text-[0.65rem] font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Théorique</p>
+        <p class="text-lg font-extrabold text-amber-600 dark:text-amber-400 mt-1">{{ pot_bal|cfa }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Boutons rapides -->
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-5">
+    <h2 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-3">⚡ Résolution rapide</h2>
+    <div class="grid grid-cols-3 gap-2">
+      <form method="POST">
+        <input type="hidden" name="mode" value="all_spent">
+        <button type="submit" onclick="return confirm('Marquer {{ pot_bal|cfa }} comme entièrement dépensé (non détaillé) ?')"
+                class="w-full py-3 px-2 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-bold text-xs transition shadow-sm shadow-red-200 dark:shadow-none">
+          🔴<br>Tout dépensé
+        </button>
+      </form>
+      <button type="button" onclick="document.getElementById('partial-block').classList.toggle('hidden')"
+              class="w-full py-3 px-2 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition shadow-sm shadow-amber-200 dark:shadow-none">
+        🟡<br>Il me reste...
+      </button>
+      <form method="POST">
+        <input type="hidden" name="mode" value="all_back">
+        <button type="submit" onclick="return confirm('Tout retourner au budget ({{ pot_bal|cfa }}) ?')"
+                class="w-full py-3 px-2 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs transition shadow-sm shadow-emerald-200 dark:shadow-none">
+          🟢<br>Tout est là
+        </button>
+      </form>
+    </div>
+
+    <form id="partial-block" method="POST" class="hidden mt-3 flex gap-2">
+      <input type="hidden" name="mode" value="partial">
+      <input type="number" name="real_remaining" step="1" min="0" max="{{ pot_bal }}" placeholder="Reste réel en FCFA" required
+             class="jf-input flex-1 text-sm font-bold">
+      <button class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs whitespace-nowrap">Valider</button>
+    </form>
+  </div>
+
+  <!-- Formulaire détaillé -->
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-6">
+    <h2 class="text-sm font-bold text-gray-700 dark:text-slate-300 mb-4">📝 Détailler les dépenses</h2>
+
+    <form method="POST" id="detail-form">
+      <input type="hidden" name="mode" value="detail">
+
+      {% if favs %}
+      <!-- Favoris pour ajout rapide -->
+      <p class="text-[0.7rem] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-2">Insertion rapide depuis tes favoris</p>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+        {% for f in favs %}
+        <button type="button" onclick='addLine({{ f.amount }}, "{{ f.label|e }}", {{ f.category_id or "null" }})'
+                class="p-2.5 rounded-2xl border border-gray-200 dark:border-slate-700 hover:border-amber-400 transition text-center">
+          <div class="text-base">{{ f.icon }}</div>
+          <div class="text-[0.7rem] font-bold text-gray-700 dark:text-slate-300 truncate">{{ f.label }}</div>
+          <div class="text-[0.6rem] text-amber-600 dark:text-amber-400 font-bold">{{ f.amount|cfa }}</div>
+        </button>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Lignes -->
+      <div class="flex justify-between items-center mb-2">
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400">Dépenses</label>
+        <button type="button" onclick="addLine()" class="text-xs text-blue-500 hover:text-blue-700 font-bold">+ Ligne</button>
+      </div>
+
+      <div id="lines-container" class="space-y-2 mb-5"></div>
+
+      <!-- Reste réel -->
+      <div class="mb-4 pt-4 border-t border-gray-100 dark:border-slate-800">
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Reste réel en poche (FCFA)</label>
+        <input type="number" name="real_remaining" id="real-remaining" step="1" min="0" max="{{ pot_bal }}" value="0" required
+               oninput="updateSummary()" class="jf-input text-sm font-bold max-w-xs">
+      </div>
+
+      <!-- Résumé live -->
+      <div id="summary-box" class="bg-gray-50 dark:bg-slate-800 rounded-2xl p-4 mb-4 text-sm">
+        <p class="text-xs font-semibold text-gray-500 dark:text-slate-400 mb-2">📊 Résumé qui sera enregistré</p>
+        <div class="space-y-1">
+          <div class="flex justify-between"><span>• Dépenses tracées :</span><strong id="sum-tracked">0 FCFA</strong></div>
+          <div class="flex justify-between"><span>• Quotidien non détaillé :</span><strong id="sum-untracked" class="text-amber-600 dark:text-amber-400">0 FCFA</strong></div>
+          <div class="flex justify-between"><span>• Retour au budget :</span><strong id="sum-back" class="text-emerald-500">0 FCFA</strong></div>
+          <div class="flex justify-between pt-2 border-t border-gray-200 dark:border-slate-700 mt-2"><span>= Total</span><strong id="sum-total">0 FCFA</strong></div>
+          <div id="sum-warn" class="text-xs text-red-500 font-bold mt-1 hidden">⚠️ Saisie supérieure au pot ({{ pot_bal|cfa }})</div>
+        </div>
+      </div>
+
+      <button id="submit-btn" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl text-sm transition shadow-sm shadow-blue-200 dark:shadow-none disabled:opacity-50 disabled:cursor-not-allowed">
+        ✅ Valider le rattrapage
+      </button>
+    </form>
+
+    <a href="/" class="block text-center mt-4 text-xs text-gray-400 dark:text-slate-500 hover:text-blue-500 transition">← Retour à l'accueil</a>
+  </div>
+</div>
+
+<!-- Données pour JS -->
+<span id="data-block" data-pot-bal="{{ pot_bal }}" data-pot-date="{{ pot.date }}" data-valid-until="{{ pot.valid_until or pot.date }}"
+      data-multi="{{ '1' if is_multi_day else '0' }}"
+      data-cats='[{% for c in cats %}{"id":{{ c.id }},"name":"{{ c.name|e }}","icon":"{{ c.icon }}"}{{ "," if not loop.last }}{% endfor %}]' style="display:none"></span>
+
+<script>
+const dataBlock = document.getElementById('data-block').dataset;
+const POT_BAL = parseFloat(dataBlock.potBal) || 0;
+const POT_DATE = dataBlock.potDate;
+const VALID_UNTIL = dataBlock.validUntil;
+const IS_MULTI = dataBlock.multi === '1';
+const catsData = JSON.parse(dataBlock.cats);
+
+function fmt(n) {
+  return Math.round(n).toLocaleString('fr-FR').replace(/,/g, ' ') + ' FCFA';
+}
+
+function buildCatOptions(selected) {
+  let opts = '<option value="">— Cat. —</option>';
+  catsData.forEach(c => {
+    const sel = (selected !== undefined && selected !== null && c.id == selected) ? ' selected' : '';
+    opts += `<option value="${c.id}"${sel}>${c.icon} ${c.name}</option>`;
+  });
+  return opts;
+}
+
+let lineId = 0;
+function addLine(amount, desc, catId) {
+  const id = ++lineId;
+  const div = document.createElement('div');
+  div.dataset.line = id;
+  div.className = 'grid grid-cols-12 gap-2 items-center';
+  const dateInput = IS_MULTI
+    ? `<input type="date" name="line_date[]" value="${POT_DATE}" min="${POT_DATE}" max="${VALID_UNTIL}" class="jf-input col-span-2 text-xs">`
+    : `<input type="hidden" name="line_date[]" value="${POT_DATE}">`;
+  const colSpan = IS_MULTI ? 'col-span-3' : 'col-span-5';
+  div.innerHTML = `
+    <input type="number" name="amount[]" step="1" min="1" placeholder="Montant" oninput="updateSummary()"
+           value="${amount || ''}" class="jf-input col-span-3 font-bold text-sm">
+    <input type="text" name="description[]" placeholder="Description" value="${desc ? desc.replace(/"/g, '&quot;') : ''}"
+           class="jf-input ${colSpan} text-sm">
+    ${dateInput}
+    <select name="category_id[]" class="jf-input col-span-3 text-sm">${buildCatOptions(catId)}</select>
+    <button type="button" onclick="removeLine(${id})" class="col-span-1 w-9 h-9 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 transition text-base font-bold">✕</button>
+  `;
+  document.getElementById('lines-container').appendChild(div);
+  if (!amount) div.querySelector('input[name="amount[]"]').focus();
+  updateSummary();
+}
+
+function removeLine(id) {
+  const el = document.querySelector(`[data-line="${id}"]`);
+  if (el) el.remove();
+  updateSummary();
+}
+
+function updateSummary() {
+  let sum = 0;
+  document.querySelectorAll('input[name="amount[]"]').forEach(inp => {
+    const v = parseFloat(inp.value) || 0;
+    if (v > 0) sum += v;
+  });
+  const real = parseFloat(document.getElementById('real-remaining').value) || 0;
+  const untracked = POT_BAL - sum - real;
+  document.getElementById('sum-tracked').textContent = fmt(sum);
+  document.getElementById('sum-untracked').textContent = fmt(Math.max(untracked, 0));
+  document.getElementById('sum-back').textContent = fmt(real);
+  document.getElementById('sum-total').textContent = fmt(sum + Math.max(untracked, 0) + real);
+
+  const warn = document.getElementById('sum-warn');
+  const btn = document.getElementById('submit-btn');
+  if (untracked < -0.01) {
+    warn.classList.remove('hidden');
+    btn.disabled = true;
+  } else {
+    warn.classList.add('hidden');
+    btn.disabled = false;
+  }
+}
+
+// Initialisation : 2 lignes vides
+addLine();
+addLine();
+</script>
+
+{% endblock %}

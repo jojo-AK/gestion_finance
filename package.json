@@ -1,0 +1,25 @@
+{
+  "name": "jofinance",
+  "version": "1.0.0",
+  "description": "> Application web de gestion financière personnelle — locale, sans connexion internet, développée en Python/Flask.",
+  "main": "index.js",
+  "scripts": {
+    "build:css": "tailwindcss -i ./static/input.css -o ./static/tailwind.css --minify",
+    "watch:css": "tailwindcss -i ./static/input.css -o ./static/tailwind.css --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jojo-AK/gestion_finance.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jojo-AK/gestion_finance/issues"
+  },
+  "homepage": "https://github.com/jojo-AK/gestion_finance#readme",
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.0",
+    "tailwindcss": "^4.3.0"
+  }
+}

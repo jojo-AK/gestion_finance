@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="mb-7">
+  <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">📝 Saisir plusieurs dépenses</h1>
+  <p class="text-sm text-gray-400 dark:text-slate-500 mt-0.5">Ajoute autant de lignes que nécessaire et valide tout d'un coup</p>
+</div>
+
+<div class="max-w-3xl">
+  <div class="bg-white dark:bg-slate-900 rounded-3xl border border-gray-100 dark:border-slate-800 p-6">
+
+    <!-- Source de débit -->
+    <form method="POST" id="batch-form">
+      <div class="mb-5">
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-2">Source de débit</label>
+        <div class="grid grid-cols-2 gap-2">
+          <label id="src-pot" class="cursor-pointer p-3 rounded-2xl border-2 {{ 'border-amber-500 bg-amber-50 dark:bg-amber-900/20' if pot else 'border-gray-200 dark:border-slate-700 opacity-50' }} text-center transition">
+            <input type="radio" name="source_mode" value="pot" {{ 'checked' if pot else 'disabled' }} style="display:none">
+            <div class="text-xl mb-1">🪙</div>
+            <div class="text-xs font-bold {{ 'text-gray-900 dark:text-white' if pot else 'text-gray-400 dark:text-slate-500' }}">Pot du jour</div>
+            <div class="text-[0.65rem] {{ 'text-amber-600 dark:text-amber-400 font-bold' if pot else 'text-gray-400 dark:text-slate-500' }} mt-0.5">
+              {% if pot %}{{ pot_bal|cfa }} dispo{% else %}Aucun pot ouvert{% endif %}
+            </div>
+          </label>
+          <label id="src-budget" class="cursor-pointer p-3 rounded-2xl border-2 {{ 'border-gray-200 dark:border-slate-700' if pot else 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' }} text-center transition">
+            <input type="radio" name="source_mode" value="budget" {{ 'checked' if not pot else '' }} style="display:none">
+            <div class="text-xl mb-1">📅</div>
+            <div class="text-xs font-bold text-gray-900 dark:text-white">Budget semaine</div>
+            <div class="text-[0.65rem] text-blue-600 dark:text-blue-400 font-bold mt-0.5">{{ budget_bal|cfa }} dispo</div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Date -->
+      <div class="mb-5">
+        <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400 mb-1.5">Date</label>
+        <input type="date" name="date" value="{{ today }}" class="jf-input max-w-xs">
+      </div>
+
+      <!-- Lignes -->
+      <div class="mb-5">
+        <div class="flex justify-between items-center mb-2">
+          <label class="block text-xs font-semibold text-gray-500 dark:text-slate-400">Dépenses</label>
+          <button type="button" onclick="addLine()" class="text-xs text-blue-500 hover:text-blue-700 font-bold">+ Ligne</button>
+        </div>
+
+        <div id="lines-container" class="space-y-2">
+          <!-- Les lignes seront injectées par JS -->
+        </div>
+      </div>
+
+      <!-- Total + bouton -->
+      <div class="pt-4 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between">
+        <div>
+          <p class="text-xs text-gray-400 dark:text-slate-500">Total</p>
+          <p id="total-display" class="text-2xl font-extrabold text-red-500">0 FCFA</p>
+        </div>
+        <button class="px-6 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-2xl text-sm transition shadow-sm shadow-red-200 dark:shadow-none">
+          💸 Enregistrer toutes les dépenses
+        </button>
+      </div>
+    </form>
+
+  </div>
+</div>
+
+<!-- Données pour JS -->
+<span id="cats-data" data-cats='[{% for c in cats %}{"id":{{ c.id }},"name":"{{ c.name }}","icon":"{{ c.icon }}"}{{ "," if not loop.last }}{% endfor %}]' style="display:none"></span>
+
+<script>
+const catsData = JSON.parse(document.getElementById('cats-data').dataset.cats);
+
+function fmt(n) {
+  return Math.round(n).toLocaleString('fr-FR').replace(/,/g,' ') + ' FCFA';
+}
+
+function buildCatOptions() {
+  let opts = '<option value="">— Cat. —</option>';
+  catsData.forEach(c => {
+    opts += `<option value="${c.id}">${c.icon} ${c.name}</option>`;
+  });
+  return opts;
+}
+
+let lineId = 0;
+function addLine(focus = true) {
+  const id = ++lineId;
+  const div = document.createElement('div');
+  div.className = 'grid grid-cols-12 gap-2 items-center';
+  div.dataset.line = id;
+  div.innerHTML = `
+    <input type="number" name="amount[]" step="1" min="1" placeholder="Montant" oninput="updateTotal()" class="jf-input col-span-3 font-bold text-sm">
+    <input type="text" name="description[]" placeholder="Description" class="jf-input col-span-5 text-sm">
+    <select name="category_id[]" class="jf-input col-span-3 text-sm">${buildCatOptions()}</select>
+    <button type="button" onclick="removeLine(${id})" class="col-span-1 w-9 h-9 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 transition text-base font-bold">✕</button>
+  `;
+  document.getElementById('lines-container').appendChild(div);
+  if (focus) div.querySelector('input[name="amount[]"]').focus();
+}
+
+function removeLine(id) {
+  const el = document.querySelector(`[data-line="${id}"]`);
+  if (el) el.remove();
+  updateTotal();
+}
+
+function updateTotal() {
+  let total = 0;
+  document.querySelectorAll('input[name="amount[]"]').forEach(inp => {
+    const v = parseFloat(inp.value) || 0;
+    if (v > 0) total += v;
+  });
+  document.getElementById('total-display').textContent = fmt(total);
+}
+
+// Toggle source visuel
+document.querySelectorAll('input[name="source_mode"]').forEach(r => {
+  r.addEventListener('change', () => {
+    const pot = document.getElementById('src-pot');
+    const bud = document.getElementById('src-budget');
+    const isPot = r.value === 'pot' && r.checked;
+    if (isPot) {
+      pot.className = 'cursor-pointer p-3 rounded-2xl border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/20 text-center transition';
+      bud.className = 'cursor-pointer p-3 rounded-2xl border-2 border-gray-200 dark:border-slate-700 text-center transition';
+    } else if (r.value === 'budget' && r.checked) {
+      bud.className = 'cursor-pointer p-3 rounded-2xl border-2 border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-center transition';
+      pot.className = 'cursor-pointer p-3 rounded-2xl border-2 {{ 'border-gray-200 dark:border-slate-700' if pot else 'border-gray-200 dark:border-slate-700 opacity-50' }} text-center transition';
+    }
+  });
+});
+
+// Initialisation : 3 lignes
+addLine(false);
+addLine(false);
+addLine(false);
+document.querySelector('input[name="amount[]"]').focus();
+</script>
+
+{% endblock %}

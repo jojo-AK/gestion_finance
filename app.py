@@ -130,6 +130,31 @@ def init_db():
         active INTEGER DEFAULT 1,
         FOREIGN KEY (category_id) REFERENCES categories(id)
     );
+
+    CREATE TABLE IF NOT EXISTS daily_pots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL UNIQUE,
+        weekly_budget_id INTEGER,
+        opened_amount REAL NOT NULL,
+        closed INTEGER DEFAULT 0,
+        real_remaining REAL,
+        untracked_amount REAL DEFAULT 0,
+        note TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        closed_at TEXT,
+        valid_until TEXT,
+        FOREIGN KEY (weekly_budget_id) REFERENCES weekly_budgets(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS favorite_expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        label TEXT NOT NULL,
+        amount REAL NOT NULL,
+        category_id INTEGER,
+        icon TEXT DEFAULT '⚡',
+        position INTEGER DEFAULT 0,
+        FOREIGN KEY (category_id) REFERENCES categories(id)
+    );
     """)
 
     c.execute("SELECT COUNT(*) FROM accounts")
@@ -152,6 +177,14 @@ def init_db():
         c.execute("ALTER TABLE daily_budgets ADD COLUMN spent REAL DEFAULT 0")
     if 'note' not in cols:
         c.execute("ALTER TABLE daily_budgets ADD COLUMN note TEXT")
+
+    pot_cols = [r[1] for r in c.execute(
+        "PRAGMA table_info(daily_pots)").fetchall()]
+    if pot_cols and 'valid_until' not in pot_cols:
+        c.execute("ALTER TABLE daily_pots ADD COLUMN valid_until TEXT")
+        # Pour les pots existants : valid_until = date d'ouverture (mode 1 jour)
+        c.execute(
+            "UPDATE daily_pots SET valid_until = date WHERE valid_until IS NULL")
 
     conn.commit()
     conn.close()
@@ -232,6 +265,175 @@ def add_expense_smart(conn, montant, description, category_id, date, source='aut
     except Exception:
         pass  # La colonne spent peut ne pas exister sur ancienne base
     return True, "ok"
+
+# ─── POT DU JOUR ──────────────────────────────────────────────────────────────
+
+
+def get_active_pot(conn=None):
+    """
+    Renvoie le pot actuellement actif (ouvert et dans sa fenêtre de validité).
+    Un pot est actif si :
+      - closed = 0
+      - date ≤ aujourd'hui
+      - valid_until IS NULL (manuel) OU valid_until ≥ aujourd'hui
+    Au plus UN pot actif à la fois (invariant).
+    """
+    today = datetime.now().strftime('%Y-%m-%d')
+    own_conn = conn is None
+    if own_conn:
+        conn = get_db()
+    pot = conn.execute("""
+        SELECT * FROM daily_pots
+        WHERE closed=0 AND date <= ?
+          AND (valid_until IS NULL OR valid_until >= ?)
+        ORDER BY date DESC LIMIT 1
+    """, (today, today)).fetchone()
+    if own_conn:
+        conn.close()
+    return pot
+
+
+def get_stale_pot(conn=None):
+    """
+    Renvoie le pot le plus ancien qui est expiré (closed=0 ET valid_until < aujourd'hui).
+    Les pots manuels (valid_until=NULL) ne sont jamais stale.
+    """
+    today = datetime.now().strftime('%Y-%m-%d')
+    own_conn = conn is None
+    if own_conn:
+        conn = get_db()
+    pot = conn.execute("""
+        SELECT * FROM daily_pots
+        WHERE closed=0 AND valid_until IS NOT NULL AND valid_until < ?
+        ORDER BY date ASC LIMIT 1
+    """, (today,)).fetchone()
+    if own_conn:
+        conn.close()
+    return pot
+
+
+def get_pot_account_balance():
+    """
+    Solde du 'compte' pot = somme entrées - sorties.
+    Comme un seul pot peut être ouvert à la fois et que les pots fermés
+    sont équilibrés (entrées = sorties après clôture), ce solde correspond
+    toujours au pot actuellement ouvert (ou 0 si aucun).
+    """
+    return get_balance('pot')
+
+
+def add_pot_expense(conn, montant, description, category_id, date, fallback_to_budget=True):
+    """
+    Ajoute une dépense en débitant le pot actif si présent.
+    Si pas de pot actif → fallback sur le budget direct.
+    Si pot insuffisant → complète depuis le budget (si fallback_to_budget).
+    Le paramètre `date` est utilisé pour l'imputation comptable (carry, stats par jour).
+    """
+    pot = get_active_pot(conn)
+
+    if not pot:
+        if not fallback_to_budget:
+            return False, "Aucun pot actif."
+        return add_expense_smart(conn, montant, description, category_id, date, source='budget')
+
+    # Solde du pot (date-agnostique : un seul pot ouvert à la fois)
+    inc = conn.execute(
+        "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE destination='pot'"
+    ).fetchone()[0]
+    out = conn.execute(
+        "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE source='pot'"
+    ).fetchone()[0]
+    pot_bal = round(inc - out, 2)
+
+    if montant <= pot_bal:
+        create_ledger_entry(conn, 'pot', 'depense', montant,
+                            'expense', description, category_id, date)
+    else:
+        if not fallback_to_budget:
+            return False, f"Pot insuffisant. Disponible : {cfa(pot_bal)}"
+        from_pot = pot_bal
+        from_budget = round(montant - from_pot, 2)
+        budget_bal = get_balance('budget')
+        if from_budget > budget_bal:
+            return False, f"Fonds insuffisants. Pot {cfa(pot_bal)} + Budget {cfa(budget_bal)}."
+        if from_pot > 0:
+            create_ledger_entry(conn, 'pot', 'depense', from_pot,
+                                'expense', description, category_id, date)
+        create_ledger_entry(conn, 'budget', 'depense', from_budget,
+                            'expense', (description or '') + ' (excédent pot)', category_id, date)
+
+    # Maj spent du jour
+    try:
+        conn.execute(
+            "UPDATE daily_budgets SET spent = COALESCE(spent,0) + ? WHERE date = ?",
+            (montant, date)
+        )
+    except Exception:
+        pass
+    return True, "ok"
+
+
+def force_close_pots_before_week():
+    """
+    Filet de sécurité hebdomadaire : auto-ferme tous les pots ouverts d'une
+    semaine antérieure (mode pessimiste : tout en 'Quotidien non détaillé').
+    Appelée AVANT close_week_if_needed pour garantir la cohérence.
+    """
+    today_d = datetime.now().date()
+    week_start = today_d - timedelta(days=today_d.weekday())
+
+    conn = get_db()
+    old_pots = conn.execute(
+        "SELECT * FROM daily_pots WHERE closed=0 AND date < ?",
+        (str(week_start),)
+    ).fetchall()
+
+    if not old_pots:
+        conn.close()
+        return []
+
+    cat_row = conn.execute(
+        "SELECT id FROM categories WHERE name IN ('Imprévu','Quotidien','Autre') ORDER BY CASE name WHEN 'Imprévu' THEN 1 WHEN 'Quotidien' THEN 2 ELSE 3 END LIMIT 1"
+    ).fetchone()
+    cat_id = cat_row['id'] if cat_row else None
+
+    closed_summaries = []
+    for pot in old_pots:
+        # Solde du pot (utilise le solde du compte pot, devrait correspondre car les autres sont fermés)
+        inc = conn.execute(
+            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE destination='pot'"
+        ).fetchone()[0]
+        out = conn.execute(
+            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE source='pot'"
+        ).fetchone()[0]
+        pot_bal = round(inc - out, 2)
+
+        if pot_bal > 0:
+            # Tout en non détaillé, daté du jour d'ouverture du pot
+            create_ledger_entry(conn, 'pot', 'depense', pot_bal,
+                                'expense', 'Quotidien non détaillé (auto-fermeture semaine)',
+                                cat_id, pot['date'])
+            try:
+                conn.execute(
+                    "UPDATE daily_budgets SET spent = COALESCE(spent,0) + ? WHERE date = ?",
+                    (pot_bal, pot['date'])
+                )
+            except Exception:
+                pass
+
+        conn.execute("""
+            UPDATE daily_pots
+            SET closed=1, real_remaining=0, untracked_amount=?,
+                closed_at=datetime('now'), note=COALESCE(note,'') || ' [auto_week_close]'
+            WHERE id=?
+        """, (pot_bal, pot['id']))
+
+        closed_summaries.append({'date': pot['date'], 'untracked': pot_bal})
+
+    conn.commit()
+    conn.close()
+    return closed_summaries
+
 
 # ─── CLÔTURE DE SEMAINE ───────────────────────────────────────────────────────
 
@@ -324,6 +526,15 @@ def propagate_carry(weekly_budget_id):
 
 @app.route("/")
 def index():
+    # Ordre crucial : auto-fermer les pots des semaines passées AVANT la clôture hebdo
+    auto_closed_pots = force_close_pots_before_week()
+    if auto_closed_pots:
+        for p in auto_closed_pots:
+            flash(
+                f"⚠️ Pot du {p['date']} auto-fermé (changement de semaine) : "
+                f"{cfa(p['untracked'])} en non détaillé.",
+                "error"
+            )
     close_week_if_needed()
     apply_recurring_expenses()
 
@@ -399,6 +610,50 @@ def index():
         "SELECT COALESCE(SUM(remaining),0) FROM loans WHERE status='active' AND direction='given'"
     ).fetchone()[0]
 
+    # Détection pot : priorité = stale (rattrapage) > actif > fermé du jour
+    stale_pot = conn.execute("""
+        SELECT * FROM daily_pots
+        WHERE closed=0 AND valid_until IS NOT NULL AND valid_until < ?
+        ORDER BY date ASC LIMIT 1
+    """, (str(today),)).fetchone()
+
+    pot = None
+    pot_bal = 0
+    pot_spent = 0
+
+    if not stale_pot:
+        # Pot actif (dans sa fenêtre de validité)
+        pot = conn.execute("""
+            SELECT * FROM daily_pots
+            WHERE closed=0 AND date <= ?
+              AND (valid_until IS NULL OR valid_until >= ?)
+            ORDER BY date DESC LIMIT 1
+        """, (str(today), str(today))).fetchone()
+
+        if pot:
+            pot_bal = round(get_balance('pot'), 2)
+            pot_spent = round(pot['opened_amount'] - pot_bal, 2)
+        else:
+            # Pot fermé aujourd'hui (pour affichage du résumé)
+            pot = conn.execute(
+                "SELECT * FROM daily_pots WHERE closed=1 AND date=? ORDER BY closed_at DESC LIMIT 1",
+                (str(today),)
+            ).fetchone()
+
+    # Favoris (pour boutons rapides)
+    favoris_list = conn.execute("""
+        SELECT f.*, c.name as cat_name, c.icon as cat_icon, c.color as cat_color
+        FROM favorite_expenses f
+        LEFT JOIN categories c ON f.category_id = c.id
+        ORDER BY f.position, f.id
+        LIMIT 8
+    """).fetchall()
+
+    # Calcul du solde du pot stale (pour affichage panneau)
+    stale_pot_bal = 0
+    if stale_pot:
+        stale_pot_bal = round(get_balance('pot'), 2)
+
     conn.close()
     return render_template("index.html",
                            reserve_bal=reserve_bal, budget_bal=budget_bal,
@@ -409,7 +664,10 @@ def index():
                            monthly_income=round(monthly_income, 2), monthly_expenses=round(monthly_expenses, 2),
                            loans_count=loans_count, loans_total=round(
                                loans_total, 2),
-                           today=str(today), week_start=str(week_start)
+                           today=str(today), week_start=str(week_start),
+                           pot=pot, pot_bal=pot_bal, pot_spent=pot_spent,
+                           favoris_list=favoris_list,
+                           stale_pot=stale_pot, stale_pot_bal=stale_pot_bal
                            )
 
 # ── REVENUS ───────────────────────────────────────────────────────────────────
@@ -509,6 +767,519 @@ def transfert():
         conn.close()
         flash(f"✅ {cfa(montant)} transféré vers le budget.", "success")
     return redirect(url_for('index'))
+
+# ── POT DU JOUR : OUVERTURE / FERMETURE / DÉPENSE RAPIDE / BATCH ──────────────
+
+
+@app.route("/pot/open", methods=["POST"])
+def pot_open():
+    try:
+        montant = float(request.form['montant'])
+    except Exception:
+        flash("⚠️ Montant invalide.", "error")
+        return redirect(url_for('index'))
+
+    if montant <= 0:
+        flash("⚠️ Le montant doit être positif.", "error")
+        return redirect(url_for('index'))
+
+    today = datetime.now().strftime('%Y-%m-%d')
+    today_d = datetime.now().date()
+    week_start = today_d - timedelta(days=today_d.weekday())
+
+    # Mode de validité : '1day' (défaut) / 'multi' (avec days) / 'manual'
+    validity_mode = request.form.get('validity_mode', '1day')
+    if validity_mode == 'multi':
+        try:
+            days = int(request.form.get('validity_days', '3'))
+            days = max(2, min(days, 7))  # borne 2 à 7 jours
+        except Exception:
+            days = 3
+        valid_until = (today_d + timedelta(days=days - 1)).strftime('%Y-%m-%d')
+    elif validity_mode == 'manual':
+        valid_until = None
+    else:
+        valid_until = today  # 1 jour
+
+    budget_bal = get_balance('budget')
+    if montant > budget_bal:
+        flash(
+            f"⚠️ Budget semaine insuffisant ({cfa(budget_bal)}).", "error")
+        return redirect(url_for('index'))
+
+    conn = get_db()
+
+    # Blocage : si un pot stale existe, forcer le rattrapage avant
+    stale = get_stale_pot(conn)
+    if stale:
+        conn.close()
+        flash(
+            f"⚠️ Tu dois d'abord rattraper le pot du {stale['date']} avant d'en ouvrir un nouveau.",
+            "error"
+        )
+        return redirect(url_for('index'))
+
+    # Blocage : si un pot encore actif (multi-jours en cours), refuser
+    active = get_active_pot(conn)
+    if active:
+        conn.close()
+        flash(
+            f"⚠️ Un pot est déjà actif (ouvert le {active['date']}). Ferme-le avant d'en ouvrir un nouveau.",
+            "error"
+        )
+        return redirect(url_for('index'))
+
+    existing = conn.execute(
+        "SELECT * FROM daily_pots WHERE date=?", (today,)
+    ).fetchone()
+    if existing:
+        conn.close()
+        flash("⚠️ Un pot existe déjà pour aujourd'hui.", "error")
+        return redirect(url_for('index'))
+
+    weekly = conn.execute(
+        "SELECT * FROM weekly_budgets WHERE week_start=? AND closed=0",
+        (str(week_start),)
+    ).fetchone()
+
+    create_ledger_entry(conn, 'budget', 'pot', montant, 'pot_open',
+                        'Ouverture pot du jour', None, today)
+    conn.execute(
+        "INSERT INTO daily_pots (date, weekly_budget_id, opened_amount, valid_until) VALUES (?,?,?,?)",
+        (today, weekly['id'] if weekly else None, montant, valid_until)
+    )
+    conn.commit()
+    conn.close()
+    if validity_mode == '1day':
+        msg_validity = "valable aujourd'hui"
+    elif validity_mode == 'manual':
+        msg_validity = "valable jusqu'à fermeture manuelle"
+    else:
+        msg_validity = f"valable jusqu'au {valid_until}"
+    flash(f"✅ Pot ouvert avec {cfa(montant)} ({msg_validity}).", "success")
+    return redirect(url_for('index'))
+
+
+@app.route("/pot/close", methods=["POST"])
+def pot_close():
+    today = datetime.now().strftime('%Y-%m-%d')
+    try:
+        real_remaining = float(request.form.get('real_remaining', 0) or 0)
+    except Exception:
+        real_remaining = 0.0
+
+    conn = get_db()
+    pot = get_active_pot(conn)
+    if not pot:
+        conn.close()
+        flash("⚠️ Aucun pot actif à fermer.", "error")
+        return redirect(url_for('index'))
+
+    pot_bal = round(get_balance('pot'), 2)
+
+    if real_remaining < 0 or real_remaining > pot_bal + 0.01:
+        conn.close()
+        flash(
+            f"⚠️ Le reste réel doit être entre 0 et {cfa(pot_bal)}.", "error")
+        return redirect(url_for('index'))
+
+    untracked = round(pot_bal - real_remaining, 2)
+
+    cat_row = conn.execute(
+        "SELECT id FROM categories WHERE name IN ('Imprévu','Quotidien','Autre') ORDER BY CASE name WHEN 'Imprévu' THEN 1 WHEN 'Quotidien' THEN 2 ELSE 3 END LIMIT 1"
+    ).fetchone()
+    cat_id = cat_row['id'] if cat_row else None
+
+    # Date d'imputation : aujourd'hui (jour de fermeture). Pour pot 1 jour same-day,
+    # c'est cohérent. Pour multi-jours fermé manuellement avant terme, ça loge
+    # l'untracked sur aujourd'hui ce qui est défendable (jour où l'écart est constaté).
+    if untracked > 0:
+        create_ledger_entry(conn, 'pot', 'depense', untracked,
+                            'expense', 'Quotidien non détaillé', cat_id, today)
+        try:
+            conn.execute(
+                "UPDATE daily_budgets SET spent = COALESCE(spent,0) + ? WHERE date = ?",
+                (untracked, today)
+            )
+        except Exception:
+            pass
+
+    if real_remaining > 0:
+        create_ledger_entry(conn, 'pot', 'budget', real_remaining,
+                            'pot_close', 'Fermeture pot → budget', None, today)
+
+    conn.execute(
+        "UPDATE daily_pots SET closed=1, real_remaining=?, untracked_amount=?, closed_at=datetime('now') WHERE id=?",
+        (real_remaining, untracked, pot['id'])
+    )
+    conn.commit()
+    conn.close()
+    flash(
+        f"✅ Pot fermé : {cfa(untracked)} non détaillé, {cfa(real_remaining)} retourné au budget.",
+        "success"
+    )
+    return redirect(url_for('index'))
+
+
+@app.route("/pot/rattrapage/<int:pot_id>", methods=["GET", "POST"])
+def pot_rattrapage(pot_id):
+    """
+    Rattrapage d'un pot expiré.
+    POST modes :
+      - mode=all_spent       : tout en non détaillé (1 clic)
+      - mode=partial         : real_remaining → reste, le reste en non détaillé
+      - mode=all_back        : tout retourne au budget
+      - mode=detail          : lignes saisies + reste réel + résidu en non détaillé
+    GET : page formulaire complet.
+    """
+    conn = get_db()
+    pot = conn.execute(
+        "SELECT * FROM daily_pots WHERE id=?", (pot_id,)
+    ).fetchone()
+    if not pot:
+        conn.close()
+        flash("⚠️ Pot introuvable.", "error")
+        return redirect(url_for('index'))
+
+    if pot['closed']:
+        conn.close()
+        flash("⚠️ Ce pot est déjà fermé.", "error")
+        return redirect(url_for('index'))
+
+    # Solde actuel du pot
+    pot_bal = round(get_balance('pot'), 2)
+
+    cat_row = conn.execute(
+        "SELECT id FROM categories WHERE name IN ('Imprévu','Quotidien','Autre') ORDER BY CASE name WHEN 'Imprévu' THEN 1 WHEN 'Quotidien' THEN 2 ELSE 3 END LIMIT 1"
+    ).fetchone()
+    untracked_cat_id = cat_row['id'] if cat_row else None
+
+    if request.method == "POST":
+        mode = request.form.get('mode', 'all_spent')
+        pot_open_date = pot['date']
+
+        if mode == 'all_spent':
+            if pot_bal > 0:
+                create_ledger_entry(conn, 'pot', 'depense', pot_bal, 'expense',
+                                    'Quotidien non détaillé (rattrapage)',
+                                    untracked_cat_id, pot_open_date)
+                try:
+                    conn.execute(
+                        "UPDATE daily_budgets SET spent = COALESCE(spent,0) + ? WHERE date = ?",
+                        (pot_bal, pot_open_date)
+                    )
+                except Exception:
+                    pass
+            conn.execute("""
+                UPDATE daily_pots SET closed=1, real_remaining=0,
+                untracked_amount=?, closed_at=datetime('now'), note=COALESCE(note,'') || ' [rattrapage_all_spent]'
+                WHERE id=?
+            """, (pot_bal, pot['id']))
+            conn.commit()
+            conn.close()
+            flash(
+                f"✅ Rattrapage : {cfa(pot_bal)} en non détaillé.", "success")
+            return redirect(url_for('index'))
+
+        elif mode == 'partial':
+            try:
+                real_remaining = float(
+                    request.form.get('real_remaining', 0) or 0)
+            except Exception:
+                real_remaining = 0.0
+            if real_remaining < 0 or real_remaining > pot_bal + 0.01:
+                conn.close()
+                flash(
+                    f"⚠️ Reste réel invalide (max {cfa(pot_bal)}).", "error")
+                return redirect(url_for('pot_rattrapage', pot_id=pot_id))
+            untracked = round(pot_bal - real_remaining, 2)
+            if untracked > 0:
+                create_ledger_entry(conn, 'pot', 'depense', untracked, 'expense',
+                                    'Quotidien non détaillé (rattrapage)',
+                                    untracked_cat_id, pot_open_date)
+                try:
+                    conn.execute(
+                        "UPDATE daily_budgets SET spent = COALESCE(spent,0) + ? WHERE date = ?",
+                        (untracked, pot_open_date)
+                    )
+                except Exception:
+                    pass
+            if real_remaining > 0:
+                create_ledger_entry(conn, 'pot', 'budget', real_remaining,
+                                    'pot_close', 'Rattrapage : retour reste au budget',
+                                    None, pot_open_date)
+            conn.execute("""
+                UPDATE daily_pots SET closed=1, real_remaining=?,
+                untracked_amount=?, closed_at=datetime('now'), note=COALESCE(note,'') || ' [rattrapage_partial]'
+                WHERE id=?
+            """, (real_remaining, untracked, pot['id']))
+            conn.commit()
+            conn.close()
+            flash(
+                f"✅ Rattrapage : {cfa(untracked)} non détaillé, {cfa(real_remaining)} rendu au budget.",
+                "success"
+            )
+            return redirect(url_for('index'))
+
+        elif mode == 'all_back':
+            if pot_bal > 0:
+                create_ledger_entry(conn, 'pot', 'budget', pot_bal,
+                                    'pot_close', 'Rattrapage : tout retourné au budget',
+                                    None, pot_open_date)
+            conn.execute("""
+                UPDATE daily_pots SET closed=1, real_remaining=?,
+                untracked_amount=0, closed_at=datetime('now'), note=COALESCE(note,'') || ' [rattrapage_all_back]'
+                WHERE id=?
+            """, (pot_bal, pot['id']))
+            conn.commit()
+            conn.close()
+            flash(
+                f"✅ Rattrapage : {cfa(pot_bal)} entièrement rendu au budget.", "success")
+            return redirect(url_for('index'))
+
+        elif mode == 'detail':
+            amounts = request.form.getlist('amount[]')
+            descs = request.form.getlist('description[]')
+            cats = request.form.getlist('category_id[]')
+            dates = request.form.getlist('line_date[]')
+            try:
+                real_remaining = float(
+                    request.form.get('real_remaining', 0) or 0)
+            except Exception:
+                real_remaining = 0.0
+
+            # Parse + valide les lignes
+            parsed_lines = []
+            sum_lines = 0.0
+            for i, a in enumerate(amounts):
+                try:
+                    amt = float(a)
+                    if amt <= 0:
+                        continue
+                except Exception:
+                    continue
+                d = (descs[i] if i < len(descs) else '') or ''
+                c = (cats[i] if i < len(cats) else '') or None
+                line_date = (dates[i] if i < len(dates) else '') or pot['date']
+                parsed_lines.append((amt, d, c, line_date))
+                sum_lines += amt
+
+            sum_lines = round(sum_lines, 2)
+            untracked = round(pot_bal - sum_lines - real_remaining, 2)
+
+            # Validation : sum + reste ne doit pas dépasser pot_bal
+            if untracked < -0.01:
+                conn.close()
+                flash(
+                    f"⚠️ Erreur : ta saisie ({cfa(sum_lines + real_remaining)}) dépasse le pot ({cfa(pot_bal)}).",
+                    "error"
+                )
+                return redirect(url_for('pot_rattrapage', pot_id=pot_id))
+
+            # Sauvegarde lignes
+            for amt, d, c, line_date in parsed_lines:
+                create_ledger_entry(conn, 'pot', 'depense', amt, 'expense',
+                                    d, c, line_date)
+                try:
+                    conn.execute(
+                        "UPDATE daily_budgets SET spent = COALESCE(spent,0) + ? WHERE date = ?",
+                        (amt, line_date)
+                    )
+                except Exception:
+                    pass
+
+            # Untracked résidu (daté du jour d'ouverture)
+            if untracked > 0:
+                create_ledger_entry(conn, 'pot', 'depense', untracked, 'expense',
+                                    'Quotidien non détaillé (rattrapage)',
+                                    untracked_cat_id, pot['date'])
+                try:
+                    conn.execute(
+                        "UPDATE daily_budgets SET spent = COALESCE(spent,0) + ? WHERE date = ?",
+                        (untracked, pot['date'])
+                    )
+                except Exception:
+                    pass
+
+            # Reste réel → budget
+            if real_remaining > 0:
+                create_ledger_entry(conn, 'pot', 'budget', real_remaining,
+                                    'pot_close', 'Rattrapage : retour reste au budget',
+                                    None, pot['date'])
+
+            conn.execute("""
+                UPDATE daily_pots SET closed=1, real_remaining=?,
+                untracked_amount=?, closed_at=datetime('now'), note=COALESCE(note,'') || ' [rattrapage_detail]'
+                WHERE id=?
+            """, (real_remaining, max(untracked, 0), pot['id']))
+            conn.commit()
+            conn.close()
+            flash(
+                f"✅ Rattrapage détaillé : {len(parsed_lines)} dépense(s), "
+                f"{cfa(untracked)} non détaillé, {cfa(real_remaining)} rendu au budget.",
+                "success"
+            )
+            return redirect(url_for('index'))
+
+        else:
+            conn.close()
+            flash("⚠️ Mode invalide.", "error")
+            return redirect(url_for('pot_rattrapage', pot_id=pot_id))
+
+    # GET : afficher la page de rattrapage
+    cats = conn.execute("SELECT * FROM categories").fetchall()
+    favs = conn.execute("""
+        SELECT f.*, c.name as cat_name, c.icon as cat_icon
+        FROM favorite_expenses f
+        LEFT JOIN categories c ON f.category_id = c.id
+        ORDER BY f.position, f.id
+        LIMIT 8
+    """).fetchall()
+    conn.close()
+
+    is_multi_day = pot['valid_until'] and pot['valid_until'] != pot['date']
+    return render_template(
+        "pot_rattrapage.html",
+        pot=pot, pot_bal=pot_bal, cats=cats, favs=favs,
+        is_multi_day=is_multi_day
+    )
+
+
+@app.route("/pot/quick/<int:fid>", methods=["POST"])
+def pot_quick(fid):
+    today = datetime.now().strftime('%Y-%m-%d')
+    conn = get_db()
+    fav = conn.execute(
+        "SELECT * FROM favorite_expenses WHERE id=?", (fid,)
+    ).fetchone()
+    if not fav:
+        conn.close()
+        flash("⚠️ Favori introuvable.", "error")
+        return redirect(url_for('index'))
+
+    ok, msg = add_pot_expense(
+        conn, fav['amount'], fav['label'], fav['category_id'], today, fallback_to_budget=True
+    )
+    if ok:
+        conn.commit()
+        flash(f"✅ {fav['label']} : {cfa(fav['amount'])} enregistré.", "success")
+    else:
+        flash(f"⚠️ {msg}", "error")
+    conn.close()
+    return redirect(url_for('index'))
+
+
+@app.route("/pot/batch", methods=["GET", "POST"])
+def pot_batch():
+    today = datetime.now().strftime('%Y-%m-%d')
+    conn = get_db()
+
+    if request.method == "POST":
+        amounts = request.form.getlist('amount[]')
+        descs = request.form.getlist('description[]')
+        cats = request.form.getlist('category_id[]')
+        source_mode = request.form.get('source_mode', 'pot')
+        date = request.form.get('date', today)
+
+        n_ok = 0
+        n_err = 0
+        for i, a in enumerate(amounts):
+            try:
+                amt = float(a)
+                if amt <= 0:
+                    continue
+            except Exception:
+                continue
+            d = descs[i] if i < len(descs) else ''
+            c = cats[i] if i < len(cats) else None
+            if not c:
+                c = None
+
+            if source_mode == 'pot':
+                ok, _ = add_pot_expense(
+                    conn, amt, d, c, date, fallback_to_budget=True
+                )
+            else:
+                ok, _ = add_expense_smart(
+                    conn, amt, d, c, date, source='budget'
+                )
+
+            if ok:
+                n_ok += 1
+            else:
+                n_err += 1
+
+        conn.commit()
+        conn.close()
+        if n_ok:
+            flash(f"✅ {n_ok} dépense(s) enregistrée(s).", "success")
+        if n_err:
+            flash(f"⚠️ {n_err} ligne(s) échouée(s).", "error")
+        return redirect(url_for('index'))
+
+    cats = conn.execute("SELECT * FROM categories").fetchall()
+    pot = conn.execute(
+        "SELECT * FROM daily_pots WHERE date=? AND closed=0", (today,)
+    ).fetchone()
+    pot_bal = 0
+    if pot:
+        inc = conn.execute(
+            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE destination='pot' AND date=?", (today,)
+        ).fetchone()[0]
+        out = conn.execute(
+            "SELECT COALESCE(SUM(amount),0) FROM ledger WHERE source='pot' AND date=?", (today,)
+        ).fetchone()[0]
+        pot_bal = round(inc - out, 2)
+    budget_bal = get_balance('budget')
+    conn.close()
+    return render_template(
+        "pot_batch.html",
+        cats=cats, pot=pot, pot_bal=pot_bal,
+        budget_bal=budget_bal, today=today
+    )
+
+
+@app.route("/favoris", methods=["GET", "POST"])
+def favoris():
+    conn = get_db()
+    if request.method == "POST":
+        try:
+            label = request.form['label'].strip()
+            amount = float(request.form['amount'])
+            cat_id = request.form.get('category_id') or None
+            icon = request.form.get('icon', '⚡').strip() or '⚡'
+            if label and amount > 0:
+                conn.execute(
+                    "INSERT INTO favorite_expenses (label, amount, category_id, icon) VALUES (?,?,?,?)",
+                    (label, amount, cat_id, icon)
+                )
+                conn.commit()
+                flash("✅ Favori ajouté.", "success")
+            else:
+                flash("⚠️ Label et montant requis.", "error")
+        except Exception as e:
+            flash(f"⚠️ Erreur : {e}", "error")
+
+    favs = conn.execute("""
+        SELECT f.*, c.name as cat_name, c.icon as cat_icon, c.color as cat_color
+        FROM favorite_expenses f
+        LEFT JOIN categories c ON f.category_id = c.id
+        ORDER BY f.position, f.id
+    """).fetchall()
+    cats = conn.execute("SELECT * FROM categories").fetchall()
+    conn.close()
+    return render_template("favoris.html", favs=favs, cats=cats)
+
+
+@app.route("/favoris/supprimer/<int:fid>", methods=["POST"])
+def favoris_delete(fid):
+    conn = get_db()
+    conn.execute("DELETE FROM favorite_expenses WHERE id=?", (fid,))
+    conn.commit()
+    conn.close()
+    flash("✅ Favori supprimé.", "success")
+    return redirect(url_for('favoris'))
+
 
 # ── BUDGET SEMAINE ────────────────────────────────────────────────────────────
 

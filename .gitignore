@@ -2,6 +2,9 @@
 __pycache__/
 *.pyc
 
+# Node.js
+node_modules/
+
 # Base de données (données privées)
 finance.db
 
